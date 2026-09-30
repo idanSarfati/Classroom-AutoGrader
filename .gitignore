@@ -1,0 +1,21 @@
+# Virtual environment
+.venv/
+
+# Python bytecode
+__pycache__/
+
+# Test runner cache
+.pytest_cache/
+
+# Environment secrets
+.env
+
+# Google OAuth artifacts
+credentials.json
+token.json
+
+# Logs
+*.log
+
+# Generated grade exports (contain student names/grades)
+exports/

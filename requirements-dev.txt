@@ -1,0 +1,8 @@
+# --- Test-only dependencies (NOT needed for runtime/cloud deploy) --------
+# Install after requirements.txt:
+#   python -m pip install -r requirements.txt -r requirements-dev.txt
+#
+# pytest  - test runner for tests/
+# httpx   - fake transport used by tests/test_json_repair.py
+httpx==0.28.1
+pytest==9.1.1

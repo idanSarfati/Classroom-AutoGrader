@@ -1,0 +1,13 @@
+# --- Pinned production dependencies -------------------------------------
+google-api-python-client==2.200.0
+google-auth==2.58.0
+google-auth-httplib2==0.4.2
+google-auth-oauthlib==1.4.1
+openai==3.19.2
+pandas>=2.0.0
+python-bidi==0.6.11
+python-dotenv==1.2.3
+pydantic==2.13.5
+streamlit>=1.30.0
+tenacity==9.1.4
+
