@@ -31,26 +31,54 @@ DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
 DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
-def _env_bool(name: str, default: bool = False) -> bool:
-    """Parse a boolean environment variable robustly."""
+def _secret(name: str) -> str | None:
+    """Return a configuration value from the environment or Streamlit secrets.
+
+    Streamlit Community Cloud injects configuration through ``st.secrets``
+    rather than the process environment, while local runs use ``.env`` /
+    ``os.environ``. Both are consulted here, environment first so a local
+    ``.env`` always overrides a stale secret.
+
+    Missing secrets are a normal state rather than an error: every CLI entry
+    point (``src/main.py``, ``src/fetch_submissions.py``, ...) runs without a
+    Streamlit runtime, and ``st.secrets`` raises ``StreamlitSecretNotFoundError``
+    when no ``secrets.toml`` exists. That exception class is not stable across
+    Streamlit versions, so the lookup is wrapped defensively instead.
+    """
     raw = os.getenv(name)
+    if raw is not None and raw.strip():
+        return raw.strip()
+    try:
+        import streamlit as st
+
+        value = st.secrets.get(name)
+    except Exception:  # noqa: BLE001 - absent secrets must never break a run
+        return None
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Parse a boolean setting robustly (environment or Streamlit secrets)."""
+    raw = _secret(name)
     if raw is None:
         return default
-    return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return raw.lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(name: str, default: int) -> int:
-    """Parse an integer environment variable, ignoring unusable values.
+    """Parse an integer setting, ignoring unusable values.
 
     A typo in ``.env`` must not take a grading run down mid-way, so anything
     that is not an integer falls back to the default (the model's own bounds
     clamp the result afterwards).
     """
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
+    raw = _secret(name)
+    if raw is None:
         return default
     try:
-        return int(raw.strip())
+        return int(raw)
     except ValueError:
         return default
 
@@ -90,13 +118,11 @@ class Settings(BaseModel):
 def load_settings() -> Settings:
     """Build :class:`Settings` from the current environment."""
     return Settings(
-        log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        log_level=(_secret("LOG_LEVEL") or "INFO").upper(),
         dry_run=_env_bool("DRY_RUN", default=False),
-        groq_api_key=(os.getenv("GROQ_API_KEY") or "").strip() or None,
-        groq_model=(os.getenv("GROQ_MODEL") or "").strip()
-        or DEFAULT_GROQ_MODEL,
-        groq_base_url=(os.getenv("GROQ_BASE_URL") or "").strip()
-        or DEFAULT_GROQ_BASE_URL,
+        groq_api_key=_secret("GROQ_API_KEY"),
+        groq_model=_secret("GROQ_MODEL") or DEFAULT_GROQ_MODEL,
+        groq_base_url=_secret("GROQ_BASE_URL") or DEFAULT_GROQ_BASE_URL,
         late_penalty_points=_env_int("LATE_PENALTY_POINTS", default=10),
     )
 
