@@ -13,9 +13,11 @@ touched.
 
 from __future__ import annotations
 
+import json
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -558,3 +560,120 @@ def test_get_submissions_captures_the_lateness_signals():
     assert got.is_late is True
     assert got.submitted_at == datetime(2026, 3, 2, 9, 0, tzinfo=timezone.utc)
     assert is_late(got, coursework()) is True
+
+
+# --------------------------------------------------------------------------- #
+# 10. The guarantee itself: a late submission's FINAL score is reduced
+#
+# The tests above either drive ``apply_late_penalty`` directly or stub out the
+# response parser. Neither proves what the teacher actually gets, so these go
+# through the whole path: a realistic Groq payload is parsed by the real
+# ``_parse_result`` and only the network call is faked.
+# --------------------------------------------------------------------------- #
+
+
+# A perfect grade: the model returns 100 with an empty breakdown. A late
+# submission graded like this must end up *below* 100, which is the whole
+# point - if the deduction were ever computed and then dropped on the floor,
+# 100 would sail through untouched.
+MODEL_AWARDS_100 = {
+    "student_name": "Noa",
+    "score": 100,
+    "feedback_hebrew": "עבודה מצוינת! כל הכבוד.",
+    "deduction_breakdown": [],
+    "task_evaluations": [
+        {
+            "task_name": "Task 1",
+            "student_answer_found": "print(1)",
+            "status": "CORRECT",
+            "notes": "נכון",
+        }
+    ],
+}
+
+
+class _GroqResponse:
+    """Minimal stand-in for an OpenAI-compatible chat completion."""
+
+    def __init__(self, content: str) -> None:
+        self.choices = [SimpleNamespace(message=SimpleNamespace(content=content))]
+
+
+def _stub_raw_completion(monkeypatch, payload: dict) -> None:
+    """Fake only the HTTP call, so payload parsing stays under test."""
+    monkeypatch.setattr(evaluator, "_get_client", lambda: object())
+    monkeypatch.setattr(
+        evaluator,
+        "_call_completion",
+        lambda client, system, prompt, fmt: _GroqResponse(json.dumps(payload)),
+    )
+    # The degrade-and-retry ladder memoises which stage last worked; reset it
+    # so one test cannot make the next skip the strict stage.
+    monkeypatch.setattr(evaluator, "_first_working_stage", 0)
+
+
+def test_a_late_submission_loses_the_penalty_from_its_final_score(monkeypatch):
+    """The headline guarantee: the notice renders *and* the points are gone.
+
+    Asserting the feedback alone is not enough - a notice on a perfect grade
+    reads as a bug to a teacher, and the Mashov CSV would still import 100. The
+    number the student is given is the number asserted here.
+    """
+    _stub_raw_completion(monkeypatch, MODEL_AWARDS_100)
+    late = submission(late_state="LATE")
+
+    graded = evaluator.evaluate_student_submission(
+        late.student_name,
+        "print(1)",
+        ASSIGNMENT,
+        late_penalty_points=penalty_for(late, coursework(), 10),
+    )
+
+    assert graded.score == 90, "a 10-point penalty must leave 100 at 90"
+    assert [i.points_deducted for i in late_rows(graded)] == [10]
+    # The breakdown must still reconcile with the score the teacher imports.
+    assert sum(i.points_deducted for i in graded.deduction_breakdown) == (
+        100 - graded.score
+    )
+    assert late_penalty_sentence(10) in graded.feedback_hebrew
+
+
+def test_an_on_time_submission_keeps_the_full_score(monkeypatch):
+    """The mirror image: the penalty must not touch work handed in on time."""
+    _stub_raw_completion(monkeypatch, MODEL_AWARDS_100)
+    on_time = submission(late_state="ON_TIME")
+
+    graded = evaluator.evaluate_student_submission(
+        on_time.student_name,
+        "print(1)",
+        ASSIGNMENT,
+        late_penalty_points=penalty_for(on_time, coursework(), 10),
+    )
+
+    assert graded.score == 100
+    assert late_rows(graded) == []
+    assert graded.feedback_hebrew == MODEL_AWARDS_100["feedback_hebrew"]
+
+
+def test_a_naive_submission_timestamp_is_read_as_utc_instead_of_crashing():
+    """An offset-less timestamp used to raise and abort the whole run.
+
+    Classroom documents a bare timestamp as UTC, so it is stamped as such
+    rather than compared raw - a TypeError here would take down every
+    remaining student in the batch, not just this one.
+    """
+    late = submission(submitted_at=datetime(2026, 3, 1, 15, 0))
+    on_time = submission(submitted_at=datetime(2026, 3, 1, 13, 0))
+
+    assert is_late(late, coursework()) is True
+    assert is_late(on_time, coursework()) is False
+
+
+def test_a_timestamp_carrying_an_offset_is_compared_in_utc():
+    """16:30+02:00 is 14:30 UTC - half an hour past the 14:00 deadline."""
+    aware = datetime(2026, 3, 1, 16, 30, tzinfo=timezone(timedelta(hours=2)))
+    assert is_late(submission(submitted_at=aware), coursework()) is True
+
+    before = datetime(2026, 3, 1, 15, 0, tzinfo=timezone(timedelta(hours=2)))
+    assert is_late(submission(submitted_at=before), coursework()) is False
+

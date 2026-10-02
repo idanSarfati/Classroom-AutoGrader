@@ -26,6 +26,7 @@ missing signal must never invent a penalty on a student's grade.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 from src.models import (
@@ -104,6 +105,26 @@ def _require_policy_fields(submission: StudentSubmission) -> None:
         )
 
 
+def _as_utc(moment: datetime) -> datetime:
+    """Return ``moment`` as an aware UTC datetime, assuming UTC when naive.
+
+    Comparing an aware and a naive datetime raises
+    ``TypeError: can't compare offset-naive and offset-aware datetimes``. That
+    used to abort the whole grading run, which is the opposite of what this
+    module promises: a timestamp it cannot reason about must *degrade* to "no
+    verdict", never take a student's grade down with it.
+
+    Classroom documents an offset-less timestamp as UTC (and
+    :func:`src.classroom_service._parse_rfc3339` already stamps that onto what
+    it parses), so a naive value is read as UTC here too rather than guessed at
+    in the machine's local zone - otherwise the same submission would be judged
+    late or on time depending on which server ran the grading.
+    """
+    if moment.tzinfo is None:
+        return moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc)
+
+
 def is_late(
     submission: StudentSubmission, coursework: Optional[CourseWork] = None
 ) -> bool:
@@ -127,13 +148,15 @@ def is_late(
 
     due = coursework.due_datetime if coursework is not None else None
     if due is not None and submission.submitted_at is not None:
-        late = submission.submitted_at > due
+        due_utc = _as_utc(due)
+        submitted_utc = _as_utc(submission.submitted_at)
+        late = submitted_utc > due_utc
         logger.warning(
             "Classroom reported no lateness verdict for submission %s; "
             "falling back to timestamps (%s > %s -> late=%s).",
             submission.submission_id or "?",
-            submission.submitted_at.isoformat(),
-            due.isoformat(),
+            submitted_utc.isoformat(),
+            due_utc.isoformat(),
             late,
         )
         return late
