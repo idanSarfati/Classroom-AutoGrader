@@ -30,6 +30,18 @@ DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
 # this base URL, so the migration needs no Groq-specific client library.
 DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
+# Points taken off a submission handed in after the deadline. Named so the
+# field default, the environment fallback and the bounds below cannot drift
+# apart; ``tests/test_cloud_secrets.py`` pins it against
+# ``src.late_policy.DEFAULT_LATE_PENALTY_POINTS`` (that module cannot be
+# imported from here - it imports this one - so the link is test-enforced).
+DEFAULT_LATE_PENALTY_POINTS = 10
+
+# A penalty is meaningless outside 0-100: 0 switches the rule off, and above
+# 100 it could never be charged in full anyway.
+MIN_LATE_PENALTY_POINTS = 0
+MAX_LATE_PENALTY_POINTS = 100
+
 
 def _secret(name: str) -> str | None:
     """Return a configuration value from the environment or Streamlit secrets.
@@ -56,6 +68,16 @@ def _secret(name: str) -> str | None:
         return None
     if isinstance(value, str) and value.strip():
         return value.strip()
+    # ``st.secrets`` hands back whatever type secrets.toml declared, so an
+    # unquoted ``LATE_PENALTY_POINTS = 15`` arrives as an int and is just as
+    # valid as the quoted form. Reading strings only silently discarded those
+    # and fell back to the default - which quietly turned a configured
+    # ``= 0`` (meant to switch the penalty off) back into a 10-point charge.
+    if isinstance(value, bool):
+        # TOML booleans back the on/off flags; parsed case-insensitively.
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
     return None
 
 
@@ -67,20 +89,36 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.lower() in {"1", "true", "yes", "on"}
 
 
-def _env_int(name: str, default: int) -> int:
-    """Parse an integer setting, ignoring unusable values.
+def _env_int(
+    name: str, default: int, minimum: int | None = None, maximum: int | None = None
+) -> int:
+    """Parse a bounded integer setting, ignoring and clamping unusable values.
 
     A typo in ``.env`` must not take a grading run down mid-way, so anything
-    that is not an integer falls back to the default (the model's own bounds
-    clamp the result afterwards).
+    that is not an integer falls back to the default, and a number outside the
+    accepted range is clamped to it.
+
+    The clamping has to happen *here* rather than being left to the model. The
+    ``ge``/``le`` bounds on :class:`Settings` make pydantic **reject** an
+    out-of-range value, and :func:`load_settings` runs at import time - so an
+    unclamped ``LATE_PENALTY_POINTS=150`` used to raise a ``ValidationError``
+    that killed the whole app on startup, instead of degrading to a usable
+    number. A misconfigured penalty can now only make itself smaller or equal
+    to the whole grade, exactly as :func:`src.late_policy.penalty_for` promises.
     """
     raw = _secret(name)
     if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
+        value = default
+    else:
+        try:
+            value = int(raw)
+        except ValueError:
+            value = default
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
 
 
 class Settings(BaseModel):
@@ -104,13 +142,15 @@ class Settings(BaseModel):
         description="Base URL of Groq's OpenAI-compatible API.",
     )
     late_penalty_points: int = Field(
-        default=10,
-        ge=0,
-        le=100,
+        default=DEFAULT_LATE_PENALTY_POINTS,
+        ge=MIN_LATE_PENALTY_POINTS,
+        le=MAX_LATE_PENALTY_POINTS,
         description=(
             "Points deducted from the score when a submission arrived after "
-            "the assignment deadline. Set LATE_PENALTY_POINTS=0 to switch the "
-            "penalty off (late work is then graded exactly like on-time work)."
+            "the assignment deadline. Unset, empty or unusable values fall "
+            f"back to {DEFAULT_LATE_PENALTY_POINTS}. Set "
+            "LATE_PENALTY_POINTS=0 to switch the penalty off (late work is "
+            "then graded exactly like on-time work)."
         ),
     )
 
@@ -123,7 +163,12 @@ def load_settings() -> Settings:
         groq_api_key=_secret("GROQ_API_KEY"),
         groq_model=_secret("GROQ_MODEL") or DEFAULT_GROQ_MODEL,
         groq_base_url=_secret("GROQ_BASE_URL") or DEFAULT_GROQ_BASE_URL,
-        late_penalty_points=_env_int("LATE_PENALTY_POINTS", default=10),
+        late_penalty_points=_env_int(
+            "LATE_PENALTY_POINTS",
+            default=DEFAULT_LATE_PENALTY_POINTS,
+            minimum=MIN_LATE_PENALTY_POINTS,
+            maximum=MAX_LATE_PENALTY_POINTS,
+        ),
     )
 
 

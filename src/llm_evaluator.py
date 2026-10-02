@@ -1060,9 +1060,16 @@ def evaluate_student_submission(
     ``late_penalty_points`` is applied *after* grading by
     :func:`src.late_policy.apply_late_penalty` - the deadline is a policy, not
     something the model can be trusted to weigh in. It is applied here, at the
-    one place every caller goes through, so a new entry point cannot quietly
-    skip the rule. See :func:`src.late_policy.penalty_for` for deciding the
-    value.
+    one place every caller goes through, so the subtraction can never be lost
+    in prompt drift or in one branch of a caller. The *value* however is the
+    caller's to decide, because only the caller holds the submission and the
+    coursework needed to tell whether the work was late at all
+    (:func:`src.late_policy.penalty_for`). It therefore defaults to ``0``: an
+    entry point that omits the argument grades late work identically to
+    on-time work rather than inventing a penalty it has no evidence for. Every
+    real entry point (``app.py``, ``src/main.py``) passes it explicitly from
+    ``settings.late_penalty_points`` - see :func:`load_settings` for how that
+    value resolves.
 
     If the strict JSON-Schema response cannot be produced (Groq answers
     ``HTTP 400: Failed to generate JSON``) or cannot be read back

@@ -187,6 +187,15 @@ switch the rule off). The rule lives in `src/late_policy.py` and is applied in
 code *after* grading - never delegated to the model, so it is applied
 identically to every late student rather than whenever the model remembers.
 
+The configured value is read in `config/settings.py` and is deliberately hard
+to lose: unset, blank, or unparseable all fall back to **10**; a value outside
+`0-100` is clamped rather than rejected, because a `LATE_PENALTY_POINTS=150`
+typo used to raise a `ValidationError` at import time and take the whole app
+down on startup. A `0` is the only way to turn the rule off, and it has to be a
+real `0` - so both the quoted (`"0"`) and bare (`0`) forms are accepted in
+`secrets.toml`, and reading only strings used to turn a bare `0` back into a
+10-point charge.
+
 Lateness is resolved from the strongest available signal: Classroom's own
 `lateState` verdict, then its `late` flag, then - only if neither is reported -
 a comparison of the submission timestamp against the assignment's exact

@@ -153,6 +153,175 @@ def test_other_settings_also_resolve_from_secrets(fake_secrets, clean_env):
     assert loaded.log_level == "DEBUG"
 
 
+# -------------------------------------------------------------------------- #
+# The late penalty: the default must never silently disappear
+#
+# A penalty that quietly evaluates to 0 is indistinguishable from no policy at
+# all - the student keeps the full mark and nothing in the UI says why. These
+# pin every way the value can arrive, so a missing, malformed, out-of-range or
+# wrong-typed setting still leaves a usable number behind.
+# -------------------------------------------------------------------------- #
+
+
+def test_the_penalty_default_is_ten_points(fake_secrets, clean_env):
+    fake_secrets({})
+    assert (
+        settings_module.load_settings().late_penalty_points
+        == settings_module.DEFAULT_LATE_PENALTY_POINTS
+        == 10
+    )
+
+
+def test_the_configured_default_matches_the_policy_module(fake_secrets, clean_env):
+    """The two defaults must not drift apart.
+
+    ``config.settings`` cannot import ``src.late_policy`` (that module imports
+    this one, so the dependency would be circular), which is exactly why this
+    link needs pinning in a test rather than by the import graph.
+    """
+    from src.late_policy import DEFAULT_LATE_PENALTY_POINTS
+
+    assert settings_module.DEFAULT_LATE_PENALTY_POINTS == DEFAULT_LATE_PENALTY_POINTS
+
+
+@pytest.mark.parametrize("raw", [None, "", "   ", "abc", "10.5", "ten"])
+def test_an_unusable_penalty_falls_back_to_the_default(
+    fake_secrets, clean_env, monkeypatch, raw
+):
+    if raw is not None:
+        monkeypatch.setenv("LATE_PENALTY_POINTS", raw)
+    fake_secrets({})
+    assert settings_module.load_settings().late_penalty_points == 10
+
+
+@pytest.mark.parametrize(
+    "raw,expected", [("-5", 0), ("-1", 0), ("150", 100), ("1000", 100), ("250", 100)]
+)
+def test_an_out_of_range_penalty_is_clamped_instead_of_crashing(
+    fake_secrets, clean_env, monkeypatch, raw, expected
+):
+    """The real failure was a ValidationError at import time.
+
+    ``Settings`` declares ``ge=0, le=100``, and pydantic *rejects* a value
+    outside that - it does not clamp it. Because ``load_settings()`` runs at
+    import, an unclamped ``LATE_PENALTY_POINTS=150`` took the whole app down on
+    startup rather than degrading to a usable number.
+    """
+    monkeypatch.setenv("LATE_PENALTY_POINTS", raw)
+    fake_secrets({})
+    loaded = settings_module.load_settings()
+    assert loaded.late_penalty_points == expected
+    assert 0 <= loaded.late_penalty_points <= 100
+
+
+@pytest.mark.parametrize("raw,expected", [("0", 0), ("15", 15), ("100", 100)])
+def test_a_penalty_written_as_a_bare_toml_number_is_honoured(
+    fake_secrets, clean_env, expected, raw
+):
+    """``LATE_PENALTY_POINTS = 0`` in secrets.toml is an int, not a string.
+
+    ``st.secrets`` returns the type the TOML declared, so the unquoted form -
+    the natural way to write a number - arrived as an int. Reading strings only
+    discarded it and fell back to the default, which turned the documented
+    "set it to 0 to switch the penalty off" back into a 10-point charge.
+    """
+    fake_secrets({"LATE_PENALTY_POINTS": int(raw)})
+    assert settings_module.load_settings().late_penalty_points == expected
+
+
+def test_a_toml_boolean_secret_is_readable_as_a_flag(fake_secrets, clean_env):
+    """``DRY_RUN = true`` unquoted must still switch dry-run on."""
+    fake_secrets({"DRY_RUN": True, "LATE_PENALTY_POINTS": 5})
+    loaded = settings_module.load_settings()
+    assert loaded.dry_run is True
+    assert loaded.late_penalty_points == 5
+
+
+def test_the_configured_penalty_reaches_the_final_score(
+    fake_secrets, clean_env, monkeypatch
+):
+    """End of the chain: a configured 25 must leave 25 points off the grade.
+
+    This is the guarantee the whole configuration path exists to serve, so it
+    is asserted on the score the teacher would import into Mashov - not on the
+    setting, which could be correct and still never be applied.
+    """
+    from datetime import datetime, timezone
+
+    import src.llm_evaluator as evaluator
+    from src.late_policy import penalty_for
+    from src.models import (
+        AssignmentConfig,
+        CourseWork,
+        StudentSubmission,
+        TaskDefinition,
+    )
+
+    assignment = AssignmentConfig(
+        assignment_id="lesson_1",
+        title="Worksheet",
+        tasks=[TaskDefinition(id=1, name="Task 1", description="print")],
+    )
+    due = datetime(2026, 3, 1, 14, 0, tzinfo=timezone.utc)
+    coursework = CourseWork(
+        id="cw1", title="Worksheet", due_date=due.date(), due_datetime=due
+    )
+
+    # A perfect grade, so any points missing from the score are the penalty.
+    payload = {
+        "student_name": "Noa",
+        "score": 100,
+        "feedback_hebrew": "כל הכבוד!",
+        "deduction_breakdown": [],
+        "task_evaluations": [
+            {
+                "task_name": "Task 1",
+                "student_answer_found": "print(1)",
+                "status": "CORRECT",
+                "notes": "נכון",
+            }
+        ],
+    }
+
+    class _Response:
+        def __init__(self, content: str) -> None:
+            self.choices = [
+                types.SimpleNamespace(message=types.SimpleNamespace(content=content))
+            ]
+
+    monkeypatch.setattr(evaluator, "_get_client", lambda: object())
+    monkeypatch.setattr(
+        evaluator,
+        "_call_completion",
+        lambda client, system, prompt, fmt: _Response(json.dumps(payload)),
+    )
+    monkeypatch.setattr(evaluator, "_first_working_stage", 0)
+
+    fake_secrets({"LATE_PENALTY_POINTS": 25})
+    configured = settings_module.load_settings().late_penalty_points
+    assert configured == 25, "a bare TOML number must survive the secret lookup"
+
+    # Lateness is the policy's call; only the number comes from settings.
+    late = StudentSubmission(
+        student_id="u1",
+        student_name="Noa",
+        submission_id="s1",
+        state="TURNED_IN",
+        is_late=True,
+    )
+    graded = evaluator.evaluate_student_submission(
+        late.student_name,
+        "print(1)",
+        assignment,
+        late_penalty_points=penalty_for(late, coursework, configured),
+    )
+
+    assert graded.score == 75, "25 configured points must come off a perfect 100"
+    assert sum(i.points_deducted for i in graded.deduction_breakdown) == (
+        100 - graded.score
+    )
+
+
 def test_missing_api_key_stays_none_so_the_evaluator_can_explain(
     fake_secrets, clean_env
 ):
