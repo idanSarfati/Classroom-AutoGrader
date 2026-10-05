@@ -38,6 +38,7 @@ from src.dashboard import (  # noqa: E402
     collect_pending_submissions,
     dry_run_rows,
     is_pending_submission,
+    is_reviewable_coursework,
     pending_rows,
     run_dry_run_evaluation,
     summarize_pending,
@@ -85,8 +86,11 @@ def make_course(course_id: str = "c1", name: str = "פייתון א") -> Course:
     return Course(id=course_id, name=name)
 
 
-def make_work(work_id: str = "w1", title: str = "lesson_1") -> CourseWork:
-    return CourseWork(id=work_id, title=title)
+def make_work(work_id: str = "w1", title: str = "lesson_1", **kwargs: Any) -> CourseWork:
+    """A published assignment by default; pass ``state``/``work_type`` to vary."""
+    kwargs.setdefault("state", "PUBLISHED")
+    kwargs.setdefault("work_type", "ASSIGNMENT")
+    return CourseWork(id=work_id, title=title, **kwargs)
 
 
 def make_config() -> AssignmentConfig:
@@ -153,6 +157,17 @@ class FakeClassroomService:
     ) -> list[StudentSubmission]:
         self.read_calls.append(f"get_submissions:{course_work_id}")
         return list(self.submissions.get(course_work_id, []))
+
+    def get_pending_submissions(
+        self, course_id: str, course_work_id: str
+    ) -> list[StudentSubmission]:
+        """Mirrors the real service: state-filtered before any name lookup."""
+        self.read_calls.append(f"get_pending_submissions:{course_work_id}")
+        return [
+            submission
+            for submission in self.submissions.get(course_work_id, [])
+            if (submission.state or "").strip().upper() == "TURNED_IN"
+        ]
 
     def extract_doc_text(self, doc_id: str) -> str:
         self.read_calls.append(f"extract_doc_text:{doc_id}")
@@ -1006,6 +1021,221 @@ def test_google_requests_cannot_block_forever() -> None:
 
     # AuthorizedHttp wraps the bounded httplib2 transport.
     assert client._http.http.timeout == GOOGLE_HTTP_TIMEOUT_SECONDS
+
+
+# --------------------------------------------------------------------------- #
+# 6. Scan performance: skip what cannot be pending, resolve only what is
+#
+#    A scan is an N+1 fan-out, and the per-student work (one
+#    ``userProfiles.get`` per unseen student, one Drive lookup per attachment)
+#    used to run for every row before anything was filtered out. These pin the
+#    optimisation: irrelevant coursework costs *no* round trip at all, and the
+#    expensive per-student work only runs for submissions that are pending.
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "state,work_type,expected",
+    [
+        ("PUBLISHED", "ASSIGNMENT", True),
+        ("draft", "assignment", False),  # a draft cannot be handed in
+        ("PUBLISHED", "DELETED", False),
+        ("DELETED", "ASSIGNMENT", False),
+        ("PUBLISHED", "SHORT_ANSWER_QUESTION", False),  # no file attachment
+        ("PUBLISHED", "MULTIPLE_CHOICE_QUESTION", False),
+        # Unspecified metadata must NOT hide real work that is waiting.
+        ("COURSE_WORK_STATE_UNSPECIFIED", "ASSIGNMENT", True),
+        ("PUBLISHED", "COURSE_WORK_TYPE_UNSPECIFIED", True),
+        (None, None, True),
+    ],
+)
+def test_only_reviewable_coursework_is_scanned(
+    state: Optional[str], work_type: Optional[str], expected: bool
+) -> None:
+    assert (
+        is_reviewable_coursework(
+            CourseWork(id="w", title="t", state=state, work_type=work_type)
+        )
+        is expected
+    )
+
+
+def test_the_scan_makes_no_submission_call_for_irrelevant_coursework() -> None:
+    """Drafts, deleted items and question types are skipped with zero round trips."""
+    service = FakeClassroomService(
+        courses=(make_course(),),
+        works={
+            "c1": [
+                make_work("w1", title="lesson_1"),
+                make_work("w2", title="Draft", state="DRAFT"),
+                make_work("w3", title="Quiz", work_type="MULTIPLE_CHOICE_QUESTION"),
+                make_work("w4", title="Q", work_type="SHORT_ANSWER_QUESTION"),
+                make_work("w5", title="Gone", state="DELETED"),
+            ]
+        },
+        submissions={
+            "w1": [make_submission("u1", "Noa")],
+            # Pending rows hidden behind items that must never be queried.
+            "w2": [make_submission("u2", "Dana")],
+            "w3": [make_submission("u3", "Yael")],
+        },
+    )
+
+    groups = collect_pending_submissions(service)
+
+    assert [group.assignment.id for group in groups] == ["w1"]
+    assert [row["Student"] for row in pending_rows(groups[0])] == ["Noa"]
+    # Exactly one submissions call, for the only reviewable assignment.
+    assert [call for call in service.read_calls if "submissions" in call] == [
+        "get_pending_submissions:w1"
+    ]
+    assert service.write_calls == []
+
+
+def _bare_service():
+    """A ClassroomService with just the caches the submission builder needs."""
+    from src.classroom_service import ClassroomService
+
+    service = ClassroomService.__new__(ClassroomService)
+    service._profile_cache = {}
+    service._mime_cache = {}
+    service._resolve_google_doc = lambda raw: None
+    return service
+
+
+def test_only_pending_rows_pay_for_a_student_lookup() -> None:
+    """The whole optimisation: returned work costs no ``userProfiles.get``."""
+    service = _bare_service()
+    resolved: list[str] = []
+    service._display_name = lambda user_id: (resolved.append(user_id), "Noa")[1]
+
+    rows = [
+        {"id": "s1", "userId": "u1", "state": "TURNED_IN"},
+        {"id": "s2", "userId": "u2", "state": "RETURNED"},
+        {"id": "s3", "userId": "u3", "state": "NEW"},
+        {"id": "s4", "userId": "u4", "state": "turned_in"},
+        {"id": "s5", "userId": "u5", "state": "RECLAIMED_BY_STUDENT"},
+    ]
+    service._raw_submissions = lambda course_id, work_id: rows
+
+    pending = service.get_pending_submissions("c1", "w1")
+
+    assert [row.student_id for row in pending] == ["u1", "u4"]
+    # Names resolved for the two handed-in students, and nobody else.
+    assert resolved == ["u1", "u4"]
+
+
+def test_an_assignment_with_nothing_pending_costs_no_lookups_at_all() -> None:
+    """The common case - work already returned - is a single round trip."""
+    service = _bare_service()
+    resolved: list[str] = []
+    service._display_name = lambda user_id: (resolved.append(user_id), "Noa")[1]
+    service._raw_submissions = lambda course_id, work_id: [
+        {"id": f"s{i}", "userId": f"u{i}", "state": "RETURNED"} for i in range(30)
+    ]
+
+    assert service.get_pending_submissions("c1", "w1") == []
+    assert resolved == [], "30 returned submissions, zero name lookups"
+
+
+def test_a_drive_file_is_inspected_only_once_per_scan() -> None:
+    """Mime lookups are memoised, including the failures."""
+    from src.classroom_service import ClassroomService
+
+    service = ClassroomService.__new__(ClassroomService)
+    service._mime_cache = {}
+    calls: list[str] = []
+    service.get_drive_file_info = lambda file_id: (calls.append(file_id), {
+        "mimeType": "application/vnd.google-apps.document"
+    })[1]
+
+    assert service._drive_mime_type("doc-1") == "application/vnd.google-apps.document"
+    assert service._drive_mime_type("doc-1") == "application/vnd.google-apps.document"
+    assert calls == ["doc-1"], "a re-submission must not re-query Drive"
+
+    # An uninspectable file is remembered as such, not retried forever.
+    service.get_drive_file_info = lambda file_id: None
+    assert service._drive_mime_type("gone") is None
+    assert service._drive_mime_type("gone") is None
+
+
+# --------------------------------------------------------------------------- #
+# 7. Partial-response selectors, validated against the real Classroom v1 schema
+#
+#    Classroom rejects an unknown field name outright - ``HTTP 400: Invalid
+#    field selection`` - taking the whole request down with it. A rename in a
+#    selector would therefore break the scan in production only, so the names
+#    are checked against the discovery document shipped with the client.
+# --------------------------------------------------------------------------- #
+
+
+def _classroom_properties(schema_name: str) -> set[str]:
+    import glob
+    import json
+
+    import googleapiclient
+
+    path = glob.glob(
+        googleapiclient.__path__[0] + "/discovery_cache/documents/classroom.v1.json"
+    )[0]
+    with open(path, encoding="utf-8") as handle:
+        schemas = json.load(handle)["schemas"]
+    return set(schemas[schema_name]["properties"])
+
+
+def _selected_names(selector: str, collection: str) -> set[str]:
+    body = selector.split(f"{collection}(", 1)[1].rsplit(")", 1)[0]
+    return {name.strip() for name in body.split(",") if name.strip()}
+
+
+def test_the_course_work_selector_names_only_real_fields() -> None:
+    from src.classroom_service import COURSE_WORK_LIST_FIELDS
+
+    assert _selected_names(COURSE_WORK_LIST_FIELDS, "courseWork") <= (
+        _classroom_properties("CourseWork")
+    )
+
+
+def test_the_submission_selector_names_only_real_fields() -> None:
+    from src.classroom_service import STUDENT_SUBMISSION_LIST_FIELDS
+
+    assert _selected_names(
+        STUDENT_SUBMISSION_LIST_FIELDS, "studentSubmissions"
+    ) <= _classroom_properties("StudentSubmission")
+
+
+def test_the_submission_selector_avoids_fields_classroom_v1_does_not_have() -> None:
+    """``lateState`` / ``assigneeSubmissionTime`` are not in the v1 schema.
+
+    The models still read them defensively, but naming them in ``fields``
+    would fail every single submission call with HTTP 400.
+    """
+    from src.classroom_service import STUDENT_SUBMISSION_LIST_FIELDS
+
+    properties = _classroom_properties("StudentSubmission")
+    assert "lateState" not in properties
+    assert "assigneeSubmissionTime" not in properties
+    assert _selected_names(
+        STUDENT_SUBMISSION_LIST_FIELDS, "studentSubmissions"
+    ).isdisjoint({"lateState", "assigneeSubmissionTime"})
+
+
+def test_the_scan_requests_every_field_it_actually_uses() -> None:
+    """Trimming a selector must fail here, not silently return blanks."""
+    from src.classroom_service import (
+        COURSE_WORK_LIST_FIELDS,
+        STUDENT_SUBMISSION_LIST_FIELDS,
+    )
+
+    assert {"id", "title", "state", "workType", "dueDate", "dueTime"} <= (
+        _selected_names(COURSE_WORK_LIST_FIELDS, "courseWork")
+    )
+    assert {"id", "userId", "state", "late", "updateTime", "assignmentSubmission"} <= (
+        _selected_names(STUDENT_SUBMISSION_LIST_FIELDS, "studentSubmissions")
+    )
+    # ...and the heavy fields we deliberately do not want are gone.
+    assert "materials" not in COURSE_WORK_LIST_FIELDS
+    assert "submissionHistory" not in STUDENT_SUBMISSION_LIST_FIELDS
 
 
 

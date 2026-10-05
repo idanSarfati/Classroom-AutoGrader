@@ -35,7 +35,10 @@ from pathlib import Path
 from typing import Any, Final, Optional
 
 from config.settings import settings
-from src.classroom_service import ClassroomServiceError
+from src.classroom_service import (
+    PENDING_SUBMISSION_STATE,
+    ClassroomServiceError,
+)
 from src.fetch_submissions import UNSUPPORTED_ATTACHMENT_MSG
 from src.late_policy import penalty_for
 from src.llm_evaluator import LLMEvaluationError, evaluate_student_submission
@@ -64,7 +67,18 @@ DRY_RUN: Final[bool] = True
 
 # Classroom's own verdict: handed in by the student, not yet graded/returned.
 # ``RETURNED`` is the graded-and-handed-back state, so it is *not* pending.
-PENDING_STATE: Final[str] = "TURNED_IN"
+PENDING_STATE: Final[str] = PENDING_SUBMISSION_STATE
+
+# Coursework states that cannot be waiting for review. A draft is invisible to
+# students, and a deleted item is gone - querying either for submissions is a
+# guaranteed-empty round trip.
+_IRRELEVANT_WORK_STATES: Final[frozenset[str]] = frozenset({"DRAFT", "DELETED"})
+
+# Only an ``ASSIGNMENT`` can carry a Google Doc. Short-answer and
+# multiple-choice questions are answered inline in Classroom and have no file
+# attachment at all, so scanning them can only ever produce "unsupported
+# attachment" rows - at the cost of a full submissions round trip per item.
+_REVIEWABLE_WORK_TYPES: Final[frozenset[str]] = frozenset({"ASSIGNMENT"})
 
 # Every ``ClassroomService`` method that mutates Google Classroom or Drive.
 # Listed explicitly (rather than guessed from a naming convention) so adding a
@@ -147,6 +161,32 @@ def is_pending_submission(submission: StudentSubmission) -> bool:
     return (submission.state or "").strip().upper() == PENDING_STATE
 
 
+def is_reviewable_coursework(work: CourseWork) -> bool:
+    """True for coursework the pending scan should actually query submissions for.
+
+    Skips the two things that cannot be waiting for review:
+
+    * **Drafts and deleted items** - a draft is invisible to students and a
+      deleted item is gone, so a submissions call for either is a guaranteed
+      empty round trip.
+    * **Question items** (``SHORT_ANSWER_QUESTION`` /
+      ``MULTIPLE_CHOICE_QUESTION``) - answered inline in Classroom, with no
+      file attachment, so there is nothing this app could ever grade.
+
+    Anything *unspecified* is deliberately treated as a published assignment:
+    dropping real work because a field was left at its API default would hide
+    a submission that genuinely is waiting.
+    """
+    state = (work.state or "PUBLISHED").strip().upper()
+    if state in _IRRELEVANT_WORK_STATES:
+        return False
+
+    work_type = (work.work_type or "ASSIGNMENT").strip().upper()
+    if work_type in {"", "COURSE_WORK_TYPE_UNSPECIFIED"}:
+        work_type = "ASSIGNMENT"
+    return work_type in _REVIEWABLE_WORK_TYPES
+
+
 def is_late_submission(submission: StudentSubmission) -> bool:
     """True when Classroom reported the submission as late (never guesses)."""
     if submission.is_late is True:
@@ -184,6 +224,16 @@ def collect_pending_submissions(
     :class:`ReadOnlyClassroomService` first, so this function cannot write even
     if it wanted to.
 
+    Two things keep it cheap:
+
+    * coursework that cannot be reviewed (drafts, deleted items, question
+      types) is skipped **without** a submissions call - see
+      :func:`is_reviewable_coursework`;
+    * for the coursework that is left, :meth:`ClassroomService
+      .get_pending_submissions` filters on the raw submission state before
+      resolving student names and attachments, so an assignment whose work is
+      already returned costs one round trip rather than one per student.
+
     Assignments with nothing pending are omitted entirely - an empty section
     per assignment would bury the ones that actually need attention.
     """
@@ -198,11 +248,16 @@ def collect_pending_submissions(
         if on_progress:
             on_progress(f"Scanning {course.name} for pending submissions...")
         for assignment in reader.list_course_work(course.id):
-            submissions = reader.get_submissions(course.id, assignment.id)
+            if not is_reviewable_coursework(assignment):
+                # No round trip: a draft/question item can never be pending.
+                if on_progress:
+                    on_progress(
+                        f"Skipping {assignment.title or assignment.id}: "
+                        "not a published assignment."
+                    )
+                continue
             pending = tuple(
-                submission
-                for submission in submissions
-                if is_pending_submission(submission)
+                reader.get_pending_submissions(course.id, assignment.id)
             )
             if not pending:
                 continue

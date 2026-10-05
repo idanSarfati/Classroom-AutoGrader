@@ -36,6 +36,23 @@ class CourseWork(BaseModel):
             "whether work handed in at 23:50 on the due date was late."
         ),
     )
+    state: Optional[str] = Field(
+        default=None,
+        description=(
+            "Coursework state reported by the API: ``PUBLISHED``, ``DRAFT`` "
+            "or ``DELETED``. ``None`` when a caller did not select the field, "
+            "which is treated as published rather than skipped - dropping a "
+            "real assignment on a guess would hide work that is waiting."
+        ),
+    )
+    work_type: Optional[str] = Field(
+        default=None,
+        description=(
+            "``ASSIGNMENT`` for real assignments; ``SHORT_ANSWER_QUESTION`` "
+            "and ``MULTIPLE_CHOICE_QUESTION`` for question items, which are "
+            "answered inline in Classroom and cannot carry a Google Doc."
+        ),
+    )
 
 
 class StudentSubmission(BaseModel):

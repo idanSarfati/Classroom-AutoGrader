@@ -55,6 +55,34 @@ UNKNOWN_STUDENT = "Unknown student"
 # an actionable error instead of an infinite spinner.
 GOOGLE_HTTP_TIMEOUT_SECONDS = 30.0
 
+# Partial-response selectors for the dashboard scan.
+#
+# Without ``fields`` the Classroom API returns each item whole: a coursework
+# payload carries its materials, description and grading settings, and a
+# student submission carries the full Drive metadata of every attachment. The
+# scan reads six fields per assignment and six per submission, and would pay
+# for the rest in bytes on each of the hundreds of calls a scan makes.
+#
+# Field names are pinned against the Classroom v1 discovery schema by
+# ``tests/test_dashboard_dry_run.py``: a name Classroom does not know is
+# rejected outright with ``HTTP 400: Invalid field selection``, taking the
+# whole request with it.
+COURSE_WORK_LIST_FIELDS = (
+    "nextPageToken,"
+    "courseWork(id,title,state,workType,dueDate,dueTime)"
+)
+
+# ``lateState`` and ``assigneeSubmissionTime`` are deliberately absent: neither
+# exists in the Classroom v1 ``StudentSubmission`` schema, so naming them
+# would fail every submission call with HTTP 400.
+STUDENT_SUBMISSION_LIST_FIELDS = (
+    "nextPageToken,"
+    "studentSubmissions(id,userId,state,late,updateTime,assignmentSubmission)"
+)
+
+# Classroom's own verdict for "handed in, not yet graded/returned".
+PENDING_SUBMISSION_STATE = "TURNED_IN"
+
 # Every comment this app leaves carries a tag at the very start, and that tag is
 # what makes publishing idempotent: a re-run recognises and rewrites its own
 # comment instead of stacking a new bubble, and it is what keeps us from ever
@@ -225,6 +253,10 @@ class ClassroomService:
         self.docs = self._build_api("docs", "v1", creds)
         # userProfiles().get() calls are cached per student id.
         self._profile_cache: dict[str, str] = {}
+        # Drive mimeType lookups, cached per file id for the same reason: the
+        # same document can appear on several assignments (a re-submission, a
+        # second course), and a failed lookup would otherwise be retried.
+        self._mime_cache: dict[str, Optional[str]] = {}
 
     @staticmethod
     def _build_api(service: str, version: str, credentials: Any) -> Any:
@@ -371,6 +403,7 @@ class ClassroomService:
                     courseWorkStates=["PUBLISHED"],
                     pageToken=page_token,
                     pageSize=100,
+                    fields=COURSE_WORK_LIST_FIELDS,
                 ),
                 f"list course work for '{course_id}'",
             )
@@ -382,6 +415,8 @@ class ClassroomService:
                         title=raw.get("title", "Untitled assignment"),
                         due_date=due_date,
                         due_datetime=due_datetime,
+                        state=raw.get("state"),
+                        work_type=raw.get("workType"),
                     )
                 )
             page_token = response.get("nextPageToken")
@@ -482,18 +517,16 @@ class ClassroomService:
     # ------------------------------------------------------------------ #
     # Submissions
     # ------------------------------------------------------------------ #
-    def get_submissions(
+    def _raw_submissions(
         self, course_id: str, course_work_id: str
-    ) -> list[StudentSubmission]:
-        """Return every submission for an assignment with names/doc ids.
+    ) -> list[dict[str, Any]]:
+        """Paginated ``studentSubmissions.list`` with a tight selector.
 
-        * Retrieves all pages (``nextPageToken``).
-        * Captures each submission's ``state`` (e.g. TURNED_IN, NEW) -
-          callers filter as needed.
-        * Resolves the student's display name via ``userProfiles().get``
-          (cached per student).
-        * Sets ``doc_id`` when the submission attaches a Google Doc;
-          links, videos, forms, and non-Doc files leave ``doc_id`` as None.
+        One HTTP round trip per page and **no per-student work** - resolving a
+        display name costs its own ``userProfiles.get`` and resolving an
+        attachment costs a Drive lookup, so both are deliberately left to
+        :meth:`_submission_from_raw` and only performed for the submissions a
+        caller actually needs.
         """
         raw_submissions: list[dict[str, Any]] = []
         page_token: Optional[str] = None
@@ -507,6 +540,7 @@ class ClassroomService:
                     courseWorkId=course_work_id,
                     pageToken=page_token,
                     pageSize=100,
+                    fields=STUDENT_SUBMISSION_LIST_FIELDS,
                 ),
                 "list student submissions",
             )
@@ -514,33 +548,81 @@ class ClassroomService:
             page_token = response.get("nextPageToken")
             if not page_token:
                 break
+        return raw_submissions
 
-        submissions: list[StudentSubmission] = []
-        for raw in raw_submissions:
-            # Lateness is read from every signal Classroom offers, so the
-            # policy can pick the strongest one. ``late`` is a bool and
-            # ``lateState`` a string depending on the API version; ``None``
-            # means "not reported" and is deliberately distinct from False.
-            late_state = (raw.get("lateState") or "").strip() or None
-            is_late_flag = raw.get("late")
-            if is_late_flag is not None:
-                is_late_flag = bool(is_late_flag)
-            submissions.append(
-                StudentSubmission(
-                    student_id=raw.get("userId", ""),
-                    student_name=self._display_name(raw.get("userId", "")),
-                    submission_id=raw.get("id", ""),
-                    state=raw.get("state", "SUBMISSION_STATE_UNSPECIFIED"),
-                    doc_id=self._resolve_google_doc(raw),
-                    raw_code="",
-                    late_state=late_state,
-                    is_late=is_late_flag,
-                    submitted_at=_parse_rfc3339(
-                        raw.get("assigneeSubmissionTime")
-                    ) or _parse_rfc3339(raw.get("updateTime")),
-                )
-            )
-        return submissions
+    def _submission_from_raw(self, raw: dict[str, Any]) -> StudentSubmission:
+        """Build the full model - the per-student API calls live in here.
+
+        ``_display_name`` costs one ``userProfiles.get`` per student not yet in
+        ``_profile_cache`` and ``_resolve_google_doc`` costs one Drive lookup
+        per attachment, so this is the expensive half of a scan. Callers that
+        only want some of the rows must filter on the raw state *before*
+        getting here - see :meth:`get_pending_submissions`.
+        """
+        # Lateness is read from every signal Classroom offers, so the
+        # policy can pick the strongest one. ``late`` is a bool and
+        # ``lateState`` a string depending on the API version; ``None``
+        # means "not reported" and is deliberately distinct from False.
+        late_state = (raw.get("lateState") or "").strip() or None
+        is_late_flag = raw.get("late")
+        if is_late_flag is not None:
+            is_late_flag = bool(is_late_flag)
+        return StudentSubmission(
+            student_id=raw.get("userId", ""),
+            student_name=self._display_name(raw.get("userId", "")),
+            submission_id=raw.get("id", ""),
+            state=raw.get("state", "SUBMISSION_STATE_UNSPECIFIED"),
+            doc_id=self._resolve_google_doc(raw),
+            raw_code="",
+            late_state=late_state,
+            is_late=is_late_flag,
+            submitted_at=_parse_rfc3339(
+                raw.get("assigneeSubmissionTime")
+            ) or _parse_rfc3339(raw.get("updateTime")),
+        )
+
+    def get_submissions(
+        self, course_id: str, course_work_id: str
+    ) -> list[StudentSubmission]:
+        """Return every submission for an assignment with names/doc ids.
+
+        * Retrieves all pages (``nextPageToken``).
+        * Captures each submission's ``state`` (e.g. TURNED_IN, NEW) -
+          callers filter as needed.
+        * Resolves the student's display name via ``userProfiles().get``
+          (cached per student).
+        * Sets ``doc_id`` when the submission attaches a Google Doc;
+          links, videos, forms, and non-Doc files leave ``doc_id`` as None.
+
+        Costs one ``userProfiles.get`` per distinct student and one Drive
+        lookup per attachment; a dashboard-wide scan should use
+        :meth:`get_pending_submissions` instead.
+        """
+        return [
+            self._submission_from_raw(raw)
+            for raw in self._raw_submissions(course_id, course_work_id)
+        ]
+
+    def get_pending_submissions(
+        self, course_id: str, course_work_id: str
+    ) -> list[StudentSubmission]:
+        """Only the submissions that are ``TURNED_IN`` - the scan's hot path.
+
+        Identical network cost to :meth:`get_submissions` (the same single
+        paginated call), but the state filter is applied to the **raw** rows
+        *before* the expensive per-student work. An assignment whose work has
+        already been handed back therefore costs one round trip instead of one
+        ``userProfiles.get`` per student plus a Drive lookup per attachment -
+        which is what turns a scan of a whole school from thousands of calls
+        into a couple of hundred.
+        """
+        pending = [
+            raw
+            for raw in self._raw_submissions(course_id, course_work_id)
+            if (raw.get("state") or "").strip().upper()
+            == PENDING_SUBMISSION_STATE
+        ]
+        return [self._submission_from_raw(raw) for raw in pending]
 
     def _display_name(self, user_id: str) -> str:
         """Resolve a user's display name via the Classroom user profile."""
@@ -634,9 +716,17 @@ class ClassroomService:
         Thin wrapper over :meth:`get_drive_file_info`, so submission
         attachment filtering and assignment-material listings share one Drive
         call shape (and one set of ``fields``).
+
+        Memoised per file id - including failures, so a file that was deleted
+        or not shared with us is not re-requested on every assignment it was
+        ever attached to.
         """
+        if file_id in self._mime_cache:
+            return self._mime_cache[file_id]
         info = self.get_drive_file_info(file_id)
-        return info.get("mimeType") if info else None
+        mime_type = info.get("mimeType") if info else None
+        self._mime_cache[file_id] = mime_type
+        return mime_type
 
     # ------------------------------------------------------------------ #
     # Docs text extraction
