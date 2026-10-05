@@ -153,6 +153,16 @@ class Settings(BaseModel):
             "then graded exactly like on-time work)."
         ),
     )
+    dashboard_auto_dry_run: bool = Field(
+        default=False,
+        description=(
+            "When true, the Dashboard runs its automated dry-run evaluation "
+            "automatically whenever its pending data is refreshed, instead of "
+            "waiting for the button. Off by default: a dry-run still costs "
+            "Groq tokens, and starting one should stay a deliberate choice. "
+            "It never writes to Google Classroom either way."
+        ),
+    )
 
 
 def load_settings() -> Settings:
@@ -168,6 +178,9 @@ def load_settings() -> Settings:
             default=DEFAULT_LATE_PENALTY_POINTS,
             minimum=MIN_LATE_PENALTY_POINTS,
             maximum=MAX_LATE_PENALTY_POINTS,
+        ),
+        dashboard_auto_dry_run=_env_bool(
+            "DASHBOARD_AUTO_DRY_RUN", default=False
         ),
     )
 

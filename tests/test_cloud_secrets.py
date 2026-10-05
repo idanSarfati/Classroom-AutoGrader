@@ -45,6 +45,7 @@ FAKE_TOKEN = {
 _TRACKED_ENV = (
     "LOG_LEVEL",
     "DRY_RUN",
+    "DASHBOARD_AUTO_DRY_RUN",
     "GROQ_API_KEY",
     "GROQ_MODEL",
     "GROQ_BASE_URL",
@@ -235,6 +236,40 @@ def test_a_toml_boolean_secret_is_readable_as_a_flag(fake_secrets, clean_env):
     loaded = settings_module.load_settings()
     assert loaded.dry_run is True
     assert loaded.late_penalty_points == 5
+
+
+# --------------------------------------------------------------------------
+# The Dashboard's automatic dry-run option
+#
+# Off by default: a dry-run still spends Groq tokens, so opting in has to be
+# explicit. Whatever it does, it is read-only - see src/dashboard.py.
+# --------------------------------------------------------------------------
+
+
+def test_auto_dry_run_is_off_by_default(fake_secrets, clean_env):
+    """The Dashboard must not start grading on its own."""
+    fake_secrets({})
+    assert settings_module.load_settings().dashboard_auto_dry_run is False
+
+
+def test_auto_dry_run_is_readable_from_streamlit_secrets(fake_secrets, clean_env):
+    """On Streamlit Community Cloud the flag arrives as a TOML boolean."""
+    fake_secrets({"DASHBOARD_AUTO_DRY_RUN": True})
+    assert settings_module.load_settings().dashboard_auto_dry_run is True
+
+
+def test_auto_dry_run_reads_the_environment(fake_secrets, clean_env, monkeypatch):
+    """Local ``.env`` / ``os.environ`` wins, as for every other setting."""
+    fake_secrets({})
+    monkeypatch.setenv("DASHBOARD_AUTO_DRY_RUN", "yes")
+    assert settings_module.load_settings().dashboard_auto_dry_run is True
+
+
+def test_auto_dry_run_tolerates_an_unusable_value(fake_secrets, clean_env, monkeypatch):
+    """A typo must degrade to the safe default instead of crashing startup."""
+    monkeypatch.setenv("DASHBOARD_AUTO_DRY_RUN", "maybe")
+    fake_secrets({})
+    assert settings_module.load_settings().dashboard_auto_dry_run is False
 
 
 def test_the_configured_penalty_reaches_the_final_score(

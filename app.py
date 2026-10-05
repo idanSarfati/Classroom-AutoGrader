@@ -1,8 +1,13 @@
 """Streamlit Web UI for Classroom AutoGrader.
 
-Provides a clean two-tab interface wrapping our grading and release backend:
-  1. Evaluate Submissions: pick course, assignment, config -> evaluate turned-in docs -> export CSV + JSON report.
-  2. Release Grades & Feedback: choose saved report -> preview students/scores -> push grades, private comments, doc feedback, return submissions -> prune released files.
+Provides a clean three-tab interface wrapping our grading and release backend:
+  1. Dashboard: home view - scan the active courses, show which submissions
+     are turned in but not yet returned (i.e. waiting for review), grouped by
+     assignment, plus an automated **dry-run** that computes predicted scores
+     and feedback for review. The dry-run is structurally read-only
+     (``DRY_RUN = True``) and can never push grades or comments back.
+  2. Evaluate Submissions: pick course, assignment, config -> evaluate turned-in docs -> export CSV + JSON report.
+  3. Release Grades & Feedback: choose saved report -> preview students/scores -> push grades, private comments, doc feedback, return submissions -> prune released files.
 
 Transient network failures (a dropped socket, Windows ``WinError 10053``) are
 retried inside :mod:`src.api_retry`; :func:`_register_retry_notifier` surfaces
@@ -27,6 +32,16 @@ import time
 from config.settings import settings
 from src.api_retry import add_retry_notifier, clear_retry_notifiers
 from src.classroom_service import ClassroomService, ClassroomServiceError
+from src.dashboard import (
+    DRY_RUN,
+    DryRunAssignmentResult,
+    PendingGroup,
+    collect_pending_submissions,
+    dry_run_rows,
+    pending_rows,
+    run_dry_run_evaluation,
+    summarize_pending,
+)
 from src.fetch_submissions import UNSUPPORTED_ATTACHMENT_MSG
 from src.late_policy import penalty_for
 from src.llm_evaluator import (
@@ -852,6 +867,300 @@ def _run_release_action(
                     st.write(f"- `{r.as_posix()}`")
 
 
+@st.cache_data(ttl=300, show_spinner="Scanning Google Classroom for pending submissions...")
+def _load_pending_dashboard(
+    course_ids: Optional[tuple[str, ...]],
+) -> tuple[PendingGroup, ...]:
+    """Cached snapshot of turned-in-but-unreturned submissions.
+
+    Any Streamlit widget interaction re-runs the whole script, so without a
+    cache every selectbox click would re-scan every assignment. The TTL covers
+    ordinary browsing; **🔄 Refresh** clears it explicitly for a rescan.
+    """
+    return tuple(
+        collect_pending_submissions(
+            _cached_classroom_service(), course_ids=course_ids
+        )
+    )
+
+
+def _build_dashboard_resolver(config_files: list[Path]):
+    """Return ``(assignment) -> (config_path, config) | None`` for the dry-run.
+
+    Reuses the Evaluate tab's two-step resolution: the remembered mapping for
+    that coursework first, then a fuzzy title match. Anything that cannot be
+    resolved - or fails to parse - yields ``None``, so the dry-run skips that
+    assignment with a visible reason instead of grading against the wrong
+    rubric.
+    """
+
+    def _resolve(assignment: CourseWork) -> Optional[tuple[Path, AssignmentConfig]]:
+        path = resolve_mapped_config(assignment.id)
+        if path is None:
+            suggestion, _score, _reason = suggest_config_for_assignment(
+                assignment.title, config_files
+            )
+            path = suggestion
+        if path is None:
+            return None
+        try:
+            return path, load_assignment_config(path)
+        except (OSError, ValueError) as exc:
+            logger.warning("Dry-run could not load rubric %s: %s", path, exc)
+            return None
+
+    return _resolve
+
+
+def _run_dry_run_action(
+    service: ClassroomService,
+    groups: list[PendingGroup],
+    config_files: list[Path],
+    directory: Optional[Path] = None,
+) -> list[DryRunAssignmentResult]:
+    """Run the automated dry-run and render the predicted scores.
+
+    Read-only by construction: :func:`src.dashboard.run_dry_run_evaluation`
+    wraps ``service`` in a read-only facade that raises before any grade,
+    comment, or return call, so there is no code path out of here that could
+    publish anything. ``directory`` exists so tests can point the local report
+    at a temp folder instead of the real ``exports/`` tree.
+    """
+    if not groups:
+        st.info("Nothing to evaluate - there are no pending submissions.")
+        return []
+    if not config_files:
+        st.error(
+            "No rubric configuration JSON files found in `assignments/` or "
+            "`config/`."
+        )
+        return []
+
+    pending_total = sum(group.count for group in groups)
+    st.info(
+        f"🧪 Dry-run: evaluating **{pending_total}** submission(s) across "
+        f"**{len(groups)}** assignment(s) with `{settings.groq_model}` "
+        f"(DRY_RUN = {DRY_RUN}). Predicted scores only - nothing is sent to "
+        "Google Classroom."
+    )
+
+    progress = st.progress(0.0)
+    status_box = st.empty()
+    try:
+        results = run_dry_run_evaluation(
+            service,
+            groups,
+            _build_dashboard_resolver(config_files),
+            directory=directory,
+            on_status=status_box.text,
+            on_progress=progress.progress,
+            pause=lambda: time.sleep(EVAL_PAUSE_SECONDS),
+        )
+    except ClassroomServiceError as exc:
+        st.error(f"Google Classroom request failed during the dry-run: {exc}")
+        return []
+    except LLMEvaluationError as exc:
+        st.error(f"Groq evaluation failed: {exc}")
+        return []
+    finally:
+        status_box.empty()
+        progress.empty()
+
+    _render_dry_run_results(results)
+    return results
+
+
+def _render_dry_run_results(results: list[DryRunAssignmentResult]) -> None:
+    """Show predicted scores, deductions and feedback - nothing is published."""
+    st.subheader("Dry-Run Results (predicted — not published)")
+    st.caption(
+        "Review the scores and feedback below. Publishing any of it is a "
+        "separate, deliberate step in **Release Grades & Feedback**."
+    )
+
+    evaluated = sum(result.evaluated for result in results)
+    failed = sum(result.failed for result in results)
+    skipped = sum(1 for result in results if result.skipped_reason)
+
+    for result in results:
+        label = f"{result.course.name} — {result.assignment.title}"
+        if result.skipped_reason:
+            st.warning(f"**{label}**: {result.skipped_reason}")
+            continue
+
+        artifacts = [
+            f"{kind} `{_config_display_path(path)}`"
+            for kind, path in (
+                ("report", result.report_path),
+                ("CSV", result.csv_path),
+            )
+            if path is not None
+        ]
+        st.markdown(
+            f"**{label}**" + (f" · {' · '.join(artifacts)}" if artifacts else "")
+        )
+        if result.save_error:
+            st.error(
+                f"Could not save local artifacts for {label}: {result.save_error}"
+            )
+
+        rows = dry_run_rows(result)
+        st.dataframe(
+            pd.DataFrame(rows).drop(columns=["doc_id"], errors="ignore"),
+            use_container_width=True,
+            hide_index=True,
+        )
+        links = [
+            (row["Student"], doc_url(row["doc_id"]))
+            for row in rows
+            if row.get("doc_id")
+        ]
+        links = [(name, url) for name, url in links if url]
+        if links:
+            with st.expander(f"📄 Student documents ({len(links)})"):
+                for name, url in links:
+                    st.markdown(f"- [{name}]({url})")
+
+    parts = [f"{evaluated} predicted score(s) computed"]
+    if failed:
+        parts.append(f"{failed} failed")
+    if skipped:
+        parts.append(f"{skipped} assignment(s) skipped (no rubric)")
+    summary = "; ".join(parts)
+    if failed or skipped:
+        st.warning(f"Dry-run finished: {summary}.")
+    else:
+        st.success(f"Dry-run finished: {summary}.")
+    st.success(
+        "🔒 Nothing was pushed to Google Classroom - no grades, no comments, "
+        "no returns."
+    )
+
+
+
+def render_dashboard_tab(service: ClassroomService) -> None:
+    """Home view: what is waiting for review, plus the automated dry-run."""
+    st.subheader("Pending Submissions Dashboard")
+
+    st.warning(
+        "🔒 **DRY RUN** — this tab only computes predicted scores and feedback "
+        "for your review. It never pushes grades, comments, or returns to "
+        "Google Classroom. Publishing is always a deliberate, manual step in "
+        "**Release Grades & Feedback**.",
+        icon="🛡️",
+    )
+
+    refresh_col, auto_col, mode_col = st.columns([1, 2, 2])
+    with refresh_col:
+        if st.button("🔄 Refresh", use_container_width=True):
+            _load_pending_dashboard.clear()
+            st.session_state["dashboard_scan"] = (
+                st.session_state.get("dashboard_scan", 0) + 1
+            )
+            st.rerun()
+    with auto_col:
+        auto_dry_run = st.checkbox(
+            "Run dry-run automatically when the list is refreshed",
+            value=settings.dashboard_auto_dry_run,
+            key="dashboard_auto_dry_run_checked",
+            help=(
+                "Off by default: a dry-run spends Groq tokens, so starting one "
+                "should stay a deliberate choice. It is read-only either way."
+            ),
+        )
+    with mode_col:
+        st.caption(
+            f"Env `DRY_RUN`: **{'on' if settings.dry_run else 'off'}** · "
+            f"Dashboard pipeline: **DRY_RUN = {DRY_RUN}** (always read-only)"
+        )
+
+    try:
+        courses = service.list_courses()
+    except ClassroomServiceError as exc:
+        st.error(f"Failed to fetch Google Classroom courses: {exc}")
+        return
+
+    if not courses:
+        st.warning("No active courses found in your Google Classroom account.")
+        return
+
+    labels = ["All active courses"] + [
+        f"{course.name}" + (f" · {course.section}" if course.section else "")
+        for course in courses
+    ]
+    selected = st.selectbox(
+        "Course",
+        range(len(labels)),
+        format_func=lambda index: labels[index],
+        key="dashboard_course_scope",
+    )
+    course_ids = None if selected == 0 else (courses[selected - 1].id,)
+
+    groups = list(_load_pending_dashboard(course_ids))
+    summary = summarize_pending(groups)
+
+    tile1, tile2, tile3, tile4 = st.columns(4)
+    tile1.metric("Courses with pending work", summary.course_count)
+    tile2.metric("Assignments awaiting review", summary.assignment_count)
+    tile3.metric("Submissions turned in", summary.submission_count)
+    tile4.metric("Flagged late", summary.late_count)
+
+    if not groups:
+        st.success(
+            "🎉 All caught up — every turned-in submission has been returned."
+        )
+        return
+
+    st.markdown("#### Waiting for review")
+    for group in groups:
+        due = group.assignment.due_datetime or group.assignment.due_date
+        due_text = f" · due {due:%Y-%m-%d}" if due else ""
+        with st.expander(
+            f"📝 {group.assignment.title} — {group.count} awaiting review",
+        ):
+            st.caption(f"Course: {group.course.name}{due_text}")
+            st.dataframe(
+                pd.DataFrame(pending_rows(group)).drop(
+                    columns=["doc_id"], errors="ignore"
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    st.divider()
+    action_col, _hint = st.columns([1, 1])
+    with action_col:
+        clicked = st.button(
+            "🧪 Run Automated Dry-Run",
+            type="primary",
+            use_container_width=True,
+        )
+    st.caption(
+        "Fetches the submissions above, grades them with the Groq engine, and "
+        "shows the predicted scores + Hebrew feedback below. Reports are saved "
+        "locally under `exports/` only."
+    )
+
+    # The auto option must not re-spend Groq tokens on every widget rerun:
+    # it fires only when the scan itself changed (Refresh, or a different
+    # course scope / number of pending submissions).
+    scan_key = (
+        st.session_state.get("dashboard_scan", 0),
+        course_ids,
+        summary.submission_count,
+    )
+    last_auto_key = st.session_state.get("dashboard_last_auto_key")
+    auto_due = auto_dry_run and last_auto_key != scan_key
+    if clicked or auto_due:
+        config_files = get_all_config_files()
+        _run_dry_run_action(service, groups, config_files)
+        # Remember the *attempt*, not just a successful one: a failed or empty
+        # run must not re-spend Groq tokens on every widget rerun. The next
+        # automatic run is triggered by an explicit Refresh (or by pressing
+        # the button), exactly as the checkbox promises.
+        st.session_state["dashboard_last_auto_key"] = scan_key
+
+
 def main() -> None:
     st.set_page_config(
         page_title="Classroom AutoGrader",
@@ -874,6 +1183,14 @@ def main() -> None:
         if st.button("🔄 Reconnect Google", use_container_width=True):
             _cached_classroom_service.clear()
             st.rerun()
+        st.divider()
+        st.caption("Safety")
+        st.caption(
+            f"Env `DRY_RUN`: **{'on' if settings.dry_run else 'off'}** · "
+            f"Dashboard dry-run: **DRY_RUN = {DRY_RUN}**. The Dashboard "
+            "evaluates and displays predictions only; grades, comments and "
+            "returns happen solely in **Release Grades & Feedback**."
+        )
 
     try:
         service = get_classroom_service()
@@ -884,7 +1201,12 @@ def main() -> None:
         )
         return
 
-    tab1, tab2 = st.tabs(["Evaluate Submissions", "Release Grades & Feedback"])
+    tab0, tab1, tab2 = st.tabs(
+        ["🏠 Dashboard", "Evaluate Submissions", "Release Grades & Feedback"]
+    )
+
+    with tab0:
+        render_dashboard_tab(service)
 
     with tab1:
         render_evaluate_tab(service)
