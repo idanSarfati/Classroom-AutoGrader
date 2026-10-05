@@ -39,11 +39,34 @@ logger = logging.getLogger(__name__)
 GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 UNKNOWN_STUDENT = "Unknown student"
 
-# Prefix carried by every comment this app leaves. It is what makes publishing
-# idempotent: a re-run recognises and rewrites its own comment instead of
-# stacking a new bubble, and it is also what keeps us from ever touching a
-# comment the teacher wrote themselves.
-FEEDBACK_COMMENT_MARKER = "🤖 משוב אוטומטי מהמערכת"
+# Every comment this app leaves carries a tag at the very start, and that tag is
+# what makes publishing idempotent: a re-run recognises and rewrites its own
+# comment instead of stacking a new bubble, and it is what keeps us from ever
+# touching a comment the teacher wrote themselves.
+#
+# The tag is deliberately *invisible*. Drive's Comment resource exposes no
+# author we can trust for this - the app posts with the teacher's own
+# credentials, so ``author`` says "teacher" for our comments and for the
+# teacher's alike - which leaves the comment text as the only thing that can
+# tell them apart. The visible Hebrew banner that used to sit on the first line
+# was that tag, and it was the only ownership marker a re-run had, so removing
+# it outright would have made every run post a second bubble and made duplicate
+# cleanup useless. These zero-width characters carry the same identity to
+# ``content.startswith`` while rendering as nothing in the Docs UI.
+#
+# U+200B ZERO WIDTH SPACE, U+2060 WORD JOINER, U+200D ZERO WIDTH JOINER: all
+# zero-advance-width, all preserved verbatim in the stored ``content`` string.
+COMMENT_OWNERSHIP_TAG = "\u200b\u2060\u200d"
+
+# The banner this tag replaced. Comments published by earlier runs still start
+# with it, so :meth:`ClassroomService._our_comments` must keep recognising them
+# - otherwise the first run after this change would add a second bubble to every
+# document that already had feedback instead of rewriting it. The next publish
+# rewrites such a comment in the new format, which migrates it automatically.
+LEGACY_FEEDBACK_COMMENT_MARKER = "🤖 משוב אוטומטי מהמערכת"
+
+# Backwards-compatible alias: the old public name for the visible banner.
+FEEDBACK_COMMENT_MARKER = LEGACY_FEEDBACK_COMMENT_MARKER
 
 # Partial-response selector for ``drive.comments().list``.
 #
@@ -526,27 +549,47 @@ class ClassroomService:
                 return file_id
         return None
 
-    def _drive_mime_type(self, file_id: str) -> Optional[str]:
-        """Look up a Drive file's mimeType; None when unavailable.
+    # ------------------------------------------------------------------ #
+    # Drive file metadata
+    # ------------------------------------------------------------------ #
+    def get_drive_file_info(self, file_id: str) -> Optional[dict[str, Any]]:
+        """Return Drive metadata for one file, or ``None`` when unavailable.
 
-        Classroom's DriveFile attachment has no mimeType field, so the Drive
+        Answers ``{"id", "name", "mimeType", "webViewLink"}`` - enough to tell
+        a Google Doc from a Slides deck or a Sheet, and to print a link a human
+        can click. Classroom's ``DriveFile`` carries no mimeType, so the Drive
         API is the authoritative source (it also verifies we can read it).
+
+        A 403/404 (not shared with us, deleted, or outside our domain) returns
+        ``None`` instead of raising: an attachment we cannot inspect must not
+        abort a listing of the whole assignment.
         """
+        if not file_id:
+            return None
         try:
-            metadata = self._execute(
+            return self._execute(
                 self.drive.files().get(
                     fileId=file_id,
-                    fields="id,mimeType",
+                    fields="id,name,mimeType,webViewLink",
                     supportsAllDrives=True,
                 ),
                 f"inspect Drive file '{file_id}'",
             )
-            return metadata.get("mimeType")
         except ClassroomServiceError as exc:
             # 403/404: not accessible or deleted - treat as unsupported
-            # rather than aborting the whole submission batch.
+            # rather than aborting the whole listing.
             logger.warning("Could not inspect Drive file %s: %s", file_id, exc)
             return None
+
+    def _drive_mime_type(self, file_id: str) -> Optional[str]:
+        """Look up a Drive file's mimeType; None when unavailable.
+
+        Thin wrapper over :meth:`get_drive_file_info`, so submission
+        attachment filtering and assignment-material listings share one Drive
+        call shape (and one set of ``fields``).
+        """
+        info = self.get_drive_file_info(file_id)
+        return info.get("mimeType") if info else None
 
     # ------------------------------------------------------------------ #
     # Docs text extraction
