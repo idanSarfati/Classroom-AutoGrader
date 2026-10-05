@@ -703,12 +703,16 @@ class DashboardStub:
         return self.checkbox_value
 
     def button(self, label, **kwargs):
+        self.messages.append(f"button:{label}")
         return label in self.buttons
 
     def dataframe(self, data, **kwargs):
         self.dataframes.append(data)
 
     def expander(self, *args, **kwargs):
+        return _Widget()
+
+    def spinner(self, *args, **kwargs):
         return _Widget()
 
     def progress(self, *args, **kwargs):
@@ -738,13 +742,33 @@ def _two_pending_groups():
     return collect_pending_submissions(two_pending_service())
 
 
+def _prime_scan(stub, groups=None):
+    """Put the dashboard in its post-scan state, as a Scan click would."""
+    stub.session_state["dashboard_groups"] = (
+        _two_pending_groups() if groups is None else groups
+    )
+
+
+class _FakeScanner:
+    """Stand-in for the cached scanner that records calls and supports clear()."""
+
+    def __init__(self, groups) -> None:
+        self.groups = groups
+        self.calls: list[object] = []
+        self.cleared = 0
+
+    def clear(self) -> None:
+        self.cleared += 1
+
+    def __call__(self, course_ids):
+        self.calls.append(course_ids)
+        return tuple(self.groups)
+
+
 def test_dashboard_renders_the_pending_summary(dashboard_app, monkeypatch) -> None:
     """The home view shows what is waiting, grouped and counted."""
     app_module, stub = dashboard_app
-    groups = _two_pending_groups()
-    monkeypatch.setattr(
-        app_module, "_load_pending_dashboard", lambda course_ids: tuple(groups)
-    )
+    _prime_scan(stub)
 
     app_module.render_dashboard_tab(two_pending_service())
 
@@ -765,10 +789,7 @@ def test_dashboard_button_runs_the_dry_run_and_writes_nothing(
     """Pressing the button grades locally; the fake records zero writes."""
     app_module, stub = dashboard_app
     monkeypatch.setattr(stub, "buttons", {"🧪 Run Automated Dry-Run"})
-    groups = _two_pending_groups()
-    monkeypatch.setattr(
-        app_module, "_load_pending_dashboard", lambda course_ids: tuple(groups)
-    )
+    _prime_scan(stub)
     # Keep the scan/report inside the test: no real mapping file, no real
     # exports/ folder, no Groq call, no sleeping between students.
     monkeypatch.setattr(app_module, "resolve_mapped_config", lambda work_id: None)
@@ -800,10 +821,7 @@ def test_the_dashboard_dry_run_never_fires_on_its_own(
 ) -> None:
     """Without the button (and with the auto option off) nothing is spent."""
     app_module, stub = dashboard_app
-    groups = _two_pending_groups()
-    monkeypatch.setattr(
-        app_module, "_load_pending_dashboard", lambda course_ids: tuple(groups)
-    )
+    _prime_scan(stub)
     called: list[tuple] = []
     monkeypatch.setattr(
         app_module,
@@ -820,10 +838,7 @@ def test_the_auto_option_wires_up_the_dry_run(dashboard_app, monkeypatch) -> Non
     """``DASHBOARD_AUTO_DRY_RUN=true`` opts in without pressing the button."""
     app_module, stub = dashboard_app
     monkeypatch.setattr(stub, "checkbox_value", True)
-    groups = _two_pending_groups()
-    monkeypatch.setattr(
-        app_module, "_load_pending_dashboard", lambda course_ids: tuple(groups)
-    )
+    _prime_scan(stub)
     called: list[tuple] = []
     monkeypatch.setattr(
         app_module,
@@ -862,6 +877,135 @@ def test_run_dry_run_action_needs_a_rubric_before_grading(dashboard_app) -> None
 
     assert results == []
     assert any(message.startswith("error:") for message in stub.messages)
+
+
+# --------------------------------------------------------------------------- #
+# 5. Startup must not block on Google
+#
+#    Regression guard for the infinite loading spinner: the dashboard used to
+#    scan the Classroom API (courses -> coursework -> submissions, all
+#    sequential) eagerly behind a spinner on every page load. Combined with a
+#    transport that had no socket timeout, one stalled connection meant the
+#    page never rendered at all.
+# --------------------------------------------------------------------------- #
+
+SCAN_BUTTON = "🔍 Scan for pending submissions"
+REFRESH_BUTTON = "🔄 Refresh"
+
+
+def test_the_first_render_touches_google_not_at_all(
+    dashboard_app, monkeypatch
+) -> None:
+    """Startup is pure UI: no scan, no spinner, no network round trip."""
+    app_module, stub = dashboard_app
+
+    def _must_not_run(course_ids):
+        raise AssertionError("the dashboard scanned Google on page load")
+
+    monkeypatch.setattr(app_module, "_load_pending_dashboard", _must_not_run)
+    service = two_pending_service()
+
+    app_module.render_dashboard_tab(service)
+
+    assert service.read_calls == [], "no API call during startup"
+    assert stub.dataframes == [], "nothing is rendered from data yet"
+    assert any(message.startswith("info:") for message in stub.messages)
+    assert any(SCAN_BUTTON in message for message in stub.messages)
+
+
+def test_the_scan_button_is_what_triggers_the_fetch(
+    dashboard_app, monkeypatch
+) -> None:
+    app_module, stub = dashboard_app
+    monkeypatch.setattr(stub, "buttons", {SCAN_BUTTON})
+    scanner = _FakeScanner(_two_pending_groups())
+    monkeypatch.setattr(app_module, "_load_pending_dashboard", scanner)
+
+    app_module.render_dashboard_tab(two_pending_service())
+
+    # One unfiltered scan - the course filter slices it in memory afterwards.
+    assert scanner.calls == [None]
+    assert dict(stub.metrics)["Submissions turned in"] == 2
+    assert stub.session_state["dashboard_groups"], "kept for later renders"
+
+
+def test_later_renders_never_hit_google_again(
+    dashboard_app, monkeypatch
+) -> None:
+    """Session cache: reruns, and switching the course, cost zero calls."""
+    app_module, stub = dashboard_app
+    monkeypatch.setattr(stub, "buttons", {SCAN_BUTTON})
+    scanner = _FakeScanner(_two_pending_groups())
+    monkeypatch.setattr(app_module, "_load_pending_dashboard", scanner)
+
+    app_module.render_dashboard_tab(two_pending_service())
+    monkeypatch.setattr(stub, "buttons", set())
+    app_module.render_dashboard_tab(two_pending_service())
+    # Switching the course filter is an in-memory slice, not another scan.
+    monkeypatch.setattr(stub, "select_value", 1)
+    app_module.render_dashboard_tab(two_pending_service())
+
+    assert scanner.calls == [None]
+    assert stub.dataframes, "the dashboard still renders from the cache"
+
+
+def test_refresh_bypasses_the_cached_scan(dashboard_app, monkeypatch) -> None:
+    """Refresh is the deliberate escape hatch, so it really re-reads Google."""
+    app_module, stub = dashboard_app
+    _prime_scan(stub)
+    scanner = _FakeScanner(_two_pending_groups())
+    monkeypatch.setattr(app_module, "_load_pending_dashboard", scanner)
+    monkeypatch.setattr(stub, "buttons", {REFRESH_BUTTON})
+
+    app_module.render_dashboard_tab(two_pending_service())
+
+    assert scanner.cleared == 1, "the st.cache_data snapshot must be dropped"
+    assert scanner.calls == [None]
+
+
+def test_a_failed_scan_is_reported_instead_of_hanging(
+    dashboard_app, monkeypatch
+) -> None:
+    """A timeout surfaces as an error, and is not cached as a bogus result."""
+    app_module, stub = dashboard_app
+    monkeypatch.setattr(stub, "buttons", {SCAN_BUTTON})
+
+    def _timed_out(course_ids):
+        raise ClassroomServiceError(
+            "Failed to list courses: timed out after 30s"
+        )
+
+    monkeypatch.setattr(app_module, "_load_pending_dashboard", _timed_out)
+
+    app_module.render_dashboard_tab(two_pending_service())
+
+    assert any(message.startswith("error:") for message in stub.messages)
+    assert stub.session_state.get("dashboard_groups") is None
+
+
+def test_google_requests_cannot_block_forever() -> None:
+    """A stalled socket must time out (and be retried) instead of hanging.
+
+    ``httplib2`` applies this value with ``sock.settimeout()``, so a half-open
+    connection raises ``TimeoutError`` - which
+    :func:`src.api_retry.is_transient_google_error` already treats as
+    transient - instead of blocking the Streamlit script thread forever.
+    """
+    from google.auth.credentials import AnonymousCredentials
+
+    from src.classroom_service import (
+        GOOGLE_HTTP_TIMEOUT_SECONDS,
+        ClassroomService,
+    )
+
+    assert GOOGLE_HTTP_TIMEOUT_SECONDS > 0
+
+    client = ClassroomService._build_api(
+        "classroom", "v1", AnonymousCredentials()
+    )
+
+    # AuthorizedHttp wraps the bounded httplib2 transport.
+    assert client._http.http.timeout == GOOGLE_HTTP_TIMEOUT_SECONDS
 
 
 

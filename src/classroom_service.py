@@ -26,6 +26,8 @@ from collections.abc import Iterator, Sequence
 from datetime import date, datetime, timezone
 from typing import Any, Optional
 
+import httplib2
+from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -38,6 +40,20 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 UNKNOWN_STUDENT = "Unknown student"
+
+# Socket timeout for every Google API round-trip.
+#
+# google-api-python-client builds its transport as ``httplib2.Http(timeout=None)``
+# and ``None`` means "wait forever". A half-open connection - a Wi-Fi roam, a
+# VPN reconnect, a middlebox silently dropping an idle keep-alive - therefore
+# leaves ``request.execute()`` blocked indefinitely: Streamlit's spinner never
+# stops and, because no exception is ever raised, the retry policy in
+# :mod:`src.api_retry` never even gets the chance to run. Bounding it turns
+# that silent hang into a socket timeout, which
+# :func:`src.api_retry.is_transient_google_error` already classifies as
+# transient - so it is retried, and if the network stays down the caller gets
+# an actionable error instead of an infinite spinner.
+GOOGLE_HTTP_TIMEOUT_SECONDS = 30.0
 
 # Every comment this app leaves carries a tag at the very start, and that tag is
 # what makes publishing idempotent: a re-run recognises and rewrites its own
@@ -204,13 +220,44 @@ class ClassroomService:
         # app.get_classroom_service.
         self.credentials = creds
         # cache_discovery=False: avoid stale on-disk discovery caches.
-        self.classroom = build(
-            "classroom", "v1", credentials=creds, cache_discovery=False
-        )
-        self.drive = build("drive", "v3", credentials=creds, cache_discovery=False)
-        self.docs = build("docs", "v1", credentials=creds, cache_discovery=False)
+        self.classroom = self._build_api("classroom", "v1", creds)
+        self.drive = self._build_api("drive", "v3", creds)
+        self.docs = self._build_api("docs", "v1", creds)
         # userProfiles().get() calls are cached per student id.
         self._profile_cache: dict[str, str] = {}
+
+    @staticmethod
+    def _build_api(service: str, version: str, credentials: Any) -> Any:
+        """Build one API client whose sockets cannot block forever.
+
+        ``build()`` refuses to take both ``http`` and ``credentials``, so the
+        authorized transport is constructed here and handed over on its own.
+        It wraps the very same credentials the credentials-only path would
+        use, so token refresh behaves identically - the only difference is the
+        bounded ``httplib2`` timeout (see
+        :data:`GOOGLE_HTTP_TIMEOUT_SECONDS`).
+
+        If anything in the bounded path fails, construction falls back to the
+        plain credentials-only call, so hardening the transport can never
+        become the reason the app refuses to start.
+        """
+        try:
+            http = AuthorizedHttp(
+                credentials,
+                http=httplib2.Http(timeout=GOOGLE_HTTP_TIMEOUT_SECONDS),
+            )
+            return build(service, version, http=http, cache_discovery=False)
+        except Exception:  # noqa: BLE001 - startup must not fail on transport setup
+            logger.warning(
+                "Could not build a timeout-bounded transport for the %s API; "
+                "falling back to the default, which can block indefinitely on "
+                "a stalled connection.",
+                service,
+                exc_info=True,
+            )
+            return build(
+                service, version, credentials=credentials, cache_discovery=False
+            )
 
     @property
     def missing_scopes(self) -> list[str]:

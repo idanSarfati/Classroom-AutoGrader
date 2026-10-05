@@ -249,7 +249,10 @@ def render_evaluate_tab(service: ClassroomService) -> None:
     )
 
     try:
-        courses = service.list_courses()
+        # Cached: in Streamlit every widget click re-runs this script, and an
+        # uncached list_courses() here used to cost a network round trip per
+        # dropdown interaction.
+        courses = list(_load_courses())
     except ClassroomServiceError as exc:
         st.error(f"Failed to fetch Google Classroom courses: {exc}")
         return
@@ -271,7 +274,7 @@ def render_evaluate_tab(service: ClassroomService) -> None:
     selected_course: Course = courses[selected_course_idx]
 
     try:
-        assignments = service.list_course_work(selected_course.id)
+        assignments = list(_load_course_work(selected_course.id))
     except ClassroomServiceError as exc:
         st.error(f"Failed to fetch assignments: {exc}")
         return
@@ -867,15 +870,35 @@ def _run_release_action(
                     st.write(f"- `{r.as_posix()}`")
 
 
+@st.cache_data(ttl=300, show_spinner="Loading Google Classroom courses...")
+def _load_courses() -> tuple[Course, ...]:
+    """Active courses, cached across reruns.
+
+    Streamlit re-executes the whole script on every widget interaction, so an
+    uncached ``list_courses()`` in a tab cost a Google round trip per dropdown
+    click. Caching makes those reruns instant while the TTL still picks up a
+    class archived (or created) today.
+    """
+    return tuple(_cached_classroom_service().list_courses())
+
+
+@st.cache_data(ttl=300, show_spinner="Loading assignments...")
+def _load_course_work(course_id: str) -> tuple[CourseWork, ...]:
+    """Published coursework for one course, cached across reruns."""
+    return tuple(_cached_classroom_service().list_course_work(course_id))
+
+
 @st.cache_data(ttl=300, show_spinner="Scanning Google Classroom for pending submissions...")
 def _load_pending_dashboard(
     course_ids: Optional[tuple[str, ...]],
 ) -> tuple[PendingGroup, ...]:
     """Cached snapshot of turned-in-but-unreturned submissions.
 
-    Any Streamlit widget interaction re-runs the whole script, so without a
-    cache every selectbox click would re-scan every assignment. The TTL covers
-    ordinary browsing; **🔄 Refresh** clears it explicitly for a rescan.
+    The scan is an N+1 fan-out (courses -> coursework -> submissions), so it
+    is deliberately called only when there is nothing to show - the caller
+    keeps the result in ``st.session_state`` and this cache is the second
+    layer behind it. The course filter is applied in memory, so switching it
+    never triggers a rescan. **🔄 Refresh** clears both layers on purpose.
     """
     return tuple(
         collect_pending_submissions(
@@ -1039,7 +1062,20 @@ def _render_dry_run_results(results: list[DryRunAssignmentResult]) -> None:
 
 
 def render_dashboard_tab(service: ClassroomService) -> None:
-    """Home view: what is waiting for review, plus the automated dry-run."""
+    """Home view: what is waiting for review, plus the automated dry-run.
+
+    Deliberately lazy. Streamlit executes *every* tab body on every script
+    run, and the pending-submission scan is an N+1 fan-out over the Classroom
+    API (courses -> coursework -> submissions). Running it eagerly meant the
+    page sat behind a spinner before a single widget could appear - and with
+    no socket timeout a stalled connection left it there forever.
+
+    So the scan only happens when the teacher asks for it, its result is kept
+    in ``st.session_state``, and the course filter is a pure in-memory slice:
+    after the first scan, switching courses and every later rerun cost **zero**
+    Google calls. Refresh is the explicit escape hatch, and it deliberately
+    bypasses the cache.
+    """
     st.subheader("Pending Submissions Dashboard")
 
     st.warning(
@@ -1052,12 +1088,7 @@ def render_dashboard_tab(service: ClassroomService) -> None:
 
     refresh_col, auto_col, mode_col = st.columns([1, 2, 2])
     with refresh_col:
-        if st.button("🔄 Refresh", use_container_width=True):
-            _load_pending_dashboard.clear()
-            st.session_state["dashboard_scan"] = (
-                st.session_state.get("dashboard_scan", 0) + 1
-            )
-            st.rerun()
+        refresh_clicked = st.button("🔄 Refresh", use_container_width=True)
     with auto_col:
         auto_dry_run = st.checkbox(
             "Run dry-run automatically when the list is refreshed",
@@ -1074,29 +1105,76 @@ def render_dashboard_tab(service: ClassroomService) -> None:
             f"Dashboard pipeline: **DRY_RUN = {DRY_RUN}** (always read-only)"
         )
 
-    try:
-        courses = service.list_courses()
-    except ClassroomServiceError as exc:
-        st.error(f"Failed to fetch Google Classroom courses: {exc}")
-        return
+    # ---- Data: read from Google only when there is nothing cached --------
+    groups = st.session_state.get("dashboard_groups")
+    scan_requested = False
 
-    if not courses:
-        st.warning("No active courses found in your Google Classroom account.")
-        return
+    if refresh_clicked:
+        # Drop both cache layers so the scan below really re-reads Google.
+        _load_pending_dashboard.clear()
+        st.session_state["dashboard_scan"] = (
+            st.session_state.get("dashboard_scan", 0) + 1
+        )
+        st.session_state["dashboard_groups"] = None
+        groups = None
+        scan_requested = True
 
-    labels = ["All active courses"] + [
-        f"{course.name}" + (f" · {course.section}" if course.section else "")
-        for course in courses
-    ]
-    selected = st.selectbox(
-        "Course",
-        range(len(labels)),
-        format_func=lambda index: labels[index],
-        key="dashboard_course_scope",
-    )
-    course_ids = None if selected == 0 else (courses[selected - 1].id,)
+    if groups is None and not scan_requested:
+        st.info(
+            "Nothing has been fetched from Google Classroom yet, so the app "
+            "starts instantly. Press **Scan** to look for submissions that "
+            "are waiting for review."
+        )
+        if st.button(
+            "🔍 Scan for pending submissions",
+            type="primary",
+            use_container_width=True,
+        ):
+            scan_requested = True
+        else:
+            # First visit: stop here, before any Google API call is made.
+            return
 
-    groups = list(_load_pending_dashboard(course_ids))
+    if scan_requested:
+        try:
+            with st.spinner(
+                "Scanning Google Classroom for pending submissions..."
+            ):
+                groups = list(_load_pending_dashboard(None))
+        except ClassroomServiceError as exc:
+            st.error(f"Failed to scan Google Classroom: {exc}")
+            return
+        st.session_state["dashboard_groups"] = groups
+    else:
+        groups = list(groups)
+
+    # ---- Course filter: an in-memory slice, never a second API call -----
+    # Every listed course is one that actually has pending work, so the
+    # dropdown can be built from the scan result without listing courses
+    # again just to populate a picker.
+    courses: list[Course] = []
+    for group in groups:
+        if all(existing.id != group.course.id for existing in courses):
+            courses.append(group.course)
+
+    scope: Optional[str] = None
+    if courses:
+        labels = ["All courses"] + [
+            f"{course.name}" + (f" · {course.section}" if course.section else "")
+            for course in courses
+        ]
+        selected = st.selectbox(
+            "Course",
+            range(len(labels)),
+            format_func=lambda index: labels[index],
+            key="dashboard_course_scope",
+        )
+        if selected != 0:
+            scope = courses[selected - 1].id
+            groups = [
+                group for group in groups if group.course.id == scope
+            ]
+
     summary = summarize_pending(groups)
 
     tile1, tile2, tile3, tile4 = st.columns(4)
@@ -1146,7 +1224,7 @@ def render_dashboard_tab(service: ClassroomService) -> None:
     # course scope / number of pending submissions).
     scan_key = (
         st.session_state.get("dashboard_scan", 0),
-        course_ids,
+        scope,
         summary.submission_count,
     )
     last_auto_key = st.session_state.get("dashboard_last_auto_key")
