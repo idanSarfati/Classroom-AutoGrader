@@ -993,8 +993,121 @@ def _run_dry_run_action(
     return results
 
 
+def _dry_run_result_key(group: PendingGroup) -> str:
+    """Session-state key holding one assignment's inline dry-run result.
+
+    Keyed by course *and* coursework id so two classes running the same
+    worksheet ("lesson_1") keep separate predictions.
+    """
+    return f"dryrun_{group.course.id}_{group.assignment.id}"
+
+
+def _render_inline_dry_run(
+    service: ClassroomService, group: PendingGroup
+) -> None:
+    """Per-assignment "Run Dry-Run" control, rendered inside its own section.
+
+    The click runs the very same read-only pipeline as the bulk button
+    (:func:`_run_dry_run_action` -> :func:`src.dashboard.run_dry_run_evaluation`,
+    which holds the service behind ``ReadOnlyClassroomService`` and refuses to
+    run unless ``DRY_RUN`` is True) - scoped to just this one group.
+
+    Streamlit re-runs the whole script on every interaction, so the outcome is
+    stored in ``st.session_state`` and rendered from there afterwards. Without
+    that, the predictions would vanish on the next click - or, worse, be
+    recomputed and spend Groq tokens again. Re-running and clearing are always
+    explicit.
+    """
+    key = _dry_run_result_key(group)
+    stored = st.session_state.get(key)
+    triggered = False
+
+    if stored is None:
+        if st.button(
+            "▶ Run Dry-Run for this assignment",
+            key=f"{key}_run",
+            type="primary",
+            use_container_width=True,
+            help=(
+                "Grades the submissions listed above with the Groq engine and "
+                f"shows the predicted scores here. Read-only: nothing is sent "
+                f"to Google Classroom (DRY_RUN = {DRY_RUN})."
+            ),
+        ):
+            triggered = True
+    else:
+        st.markdown("🧪 **Dry-run predictions** — not published")
+        _render_dry_run_assignment(stored)
+        rerun_col, clear_col, _ = st.columns([1, 1, 2])
+        with rerun_col:
+            triggered = st.button(
+                "🔁 Re-run",
+                key=f"{key}_rerun",
+                use_container_width=True,
+                help="Grades again with the current model and rubric.",
+            )
+        with clear_col:
+            if st.button(
+                "🗑 Clear",
+                key=f"{key}_clear",
+                use_container_width=True,
+                help="Hide these predictions. The saved report is untouched.",
+            ):
+                st.session_state.pop(key, None)
+                st.rerun()
+
+    if triggered:
+        results = _run_dry_run_action(service, [group], get_all_config_files())
+        if results:
+            st.session_state[key] = results[0]
+        # Render from the cache on the next pass, so the panel and the stored
+        # result can never drift apart.
+        st.rerun()
+
+
+def _render_dry_run_assignment(result: DryRunAssignmentResult) -> None:
+    """Predicted scores, deductions and feedback for one assignment.
+
+    Shared by the bulk "Run Automated Dry-Run" button and by the inline
+    per-assignment button, so both paths render byte-identical output.
+    """
+    label = f"{result.course.name} — {result.assignment.title}"
+    if result.skipped_reason:
+        st.warning(f"**{label}**: {result.skipped_reason}")
+        return
+
+    artifacts = [
+        f"{kind} `{_config_display_path(path)}`"
+        for kind, path in (
+            ("report", result.report_path),
+            ("CSV", result.csv_path),
+        )
+        if path is not None
+    ]
+    st.markdown(
+        f"**{label}**" + (f" · {' · '.join(artifacts)}" if artifacts else "")
+    )
+    if result.save_error:
+        st.error(f"Could not save local artifacts for {label}: {result.save_error}")
+
+    rows = dry_run_rows(result)
+    st.dataframe(
+        pd.DataFrame(rows).drop(columns=["doc_id"], errors="ignore"),
+        use_container_width=True,
+        hide_index=True,
+    )
+    links = [
+        (row["Student"], doc_url(row["doc_id"])) for row in rows if row.get("doc_id")
+    ]
+    links = [(name, url) for name, url in links if url]
+    if links:
+        with st.expander(f"📄 Student documents ({len(links)})"):
+            for name, url in links:
+                st.markdown(f"- [{name}]({url})")
+
+
 def _render_dry_run_results(results: list[DryRunAssignmentResult]) -> None:
-    """Show predicted scores, deductions and feedback - nothing is published."""
+    """Show every assignment's predictions - nothing is published."""
     st.subheader("Dry-Run Results (predicted — not published)")
     st.caption(
         "Review the scores and feedback below. Publishing any of it is a "
@@ -1006,43 +1119,7 @@ def _render_dry_run_results(results: list[DryRunAssignmentResult]) -> None:
     skipped = sum(1 for result in results if result.skipped_reason)
 
     for result in results:
-        label = f"{result.course.name} — {result.assignment.title}"
-        if result.skipped_reason:
-            st.warning(f"**{label}**: {result.skipped_reason}")
-            continue
-
-        artifacts = [
-            f"{kind} `{_config_display_path(path)}`"
-            for kind, path in (
-                ("report", result.report_path),
-                ("CSV", result.csv_path),
-            )
-            if path is not None
-        ]
-        st.markdown(
-            f"**{label}**" + (f" · {' · '.join(artifacts)}" if artifacts else "")
-        )
-        if result.save_error:
-            st.error(
-                f"Could not save local artifacts for {label}: {result.save_error}"
-            )
-
-        rows = dry_run_rows(result)
-        st.dataframe(
-            pd.DataFrame(rows).drop(columns=["doc_id"], errors="ignore"),
-            use_container_width=True,
-            hide_index=True,
-        )
-        links = [
-            (row["Student"], doc_url(row["doc_id"]))
-            for row in rows
-            if row.get("doc_id")
-        ]
-        links = [(name, url) for name, url in links if url]
-        if links:
-            with st.expander(f"📄 Student documents ({len(links)})"):
-                for name, url in links:
-                    st.markdown(f"- [{name}]({url})")
+        _render_dry_run_assignment(result)
 
     parts = [f"{evaluated} predicted score(s) computed"]
     if failed:
@@ -1204,6 +1281,9 @@ def render_dashboard_tab(service: ClassroomService) -> None:
                 use_container_width=True,
                 hide_index=True,
             )
+            # Inline dry-run for this assignment only - the same read-only
+            # pipeline as the bulk button, scoped to this group.
+            _render_inline_dry_run(service, group)
 
     st.divider()
     action_col, _hint = st.columns([1, 1])

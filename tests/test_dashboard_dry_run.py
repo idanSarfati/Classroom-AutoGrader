@@ -225,6 +225,47 @@ def two_pending_service() -> FakeClassroomService:
     )
 
 
+def two_assignment_pending_service() -> FakeClassroomService:
+    """Two assignments on one course, both with work awaiting review."""
+    return FakeClassroomService(
+        courses=(make_course(),),
+        works={
+            "c1": [
+                make_work("w1", title="lesson_1"),
+                make_work("w2", title="lesson_2"),
+            ]
+        },
+        submissions={
+            "w1": [make_submission("u1", "Noa", doc_id="doc-1")],
+            "w2": [make_submission("u2", "Dana", doc_id="doc-2")],
+        },
+        docs={"doc-1": "print(1)", "doc-2": "print(2)"},
+    )
+
+
+@pytest.fixture
+def inline_dry_run(monkeypatch, tmp_path):
+    """Wire the inline dry-run end to end, offline.
+
+    No real mapping lookup, no Groq call, no sleeping between students, and
+    artifacts redirected to a temp dir instead of the real ``exports/`` tree.
+    """
+    import app as app_module
+
+    monkeypatch.setattr(app_module, "resolve_mapped_config", lambda work_id: None)
+    monkeypatch.setattr(app_module, "EVAL_PAUSE_SECONDS", 0)
+    monkeypatch.setattr(dashboard, "evaluate_student_submission", fake_evaluate)
+
+    original = app_module.run_dry_run_evaluation
+
+    def _into_tmp(*args, **kwargs):
+        kwargs["directory"] = tmp_path
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(app_module, "run_dry_run_evaluation", _into_tmp)
+    return tmp_path
+
+
 # --------------------------------------------------------------------------- #
 # 1. What counts as "waiting for review"
 # --------------------------------------------------------------------------- #
@@ -669,6 +710,16 @@ def test_the_pipeline_refuses_to_run_when_dry_run_is_off(
 # --------------------------------------------------------------------------- #
 
 
+class _Rerun(Exception):
+    """Stands in for ``st.rerun()``, which aborts the current script run.
+
+    Streamlit tears down the pass and starts again, so anything a script had
+    already emitted before calling it is discarded. Modelling that faithfully
+    matters for the inline dry-run: the "clear" branch pops the cached result
+    and then reruns, so the stale panel must not survive.
+    """
+
+
 class _Widget:
     """Container-ish widget: accepts anything, usable as a context manager."""
 
@@ -700,6 +751,7 @@ class DashboardStub:
         checkbox_value: bool = False,
     ) -> None:
         self.buttons = set(buttons)
+        self.button_keys: set[str] = set()
         self.select_value = select_value
         self.checkbox_value = checkbox_value
         self.messages: list[str] = []
@@ -717,8 +769,12 @@ class DashboardStub:
     def checkbox(self, label, **kwargs):
         return self.checkbox_value
 
-    def button(self, label, **kwargs):
-        self.messages.append(f"button:{label}")
+    def button(self, label, key=None, **kwargs):
+        self.messages.append(f"button:{label}" + (f"#{key}" if key else ""))
+        # Buttons can be targeted by label (the bulk one) or, when several
+        # share a label, by their unique widget key.
+        if key is not None and key in self.button_keys:
+            return True
         return label in self.buttons
 
     def dataframe(self, data, **kwargs):
@@ -729,6 +785,9 @@ class DashboardStub:
 
     def spinner(self, *args, **kwargs):
         return _Widget()
+
+    def rerun(self, *args, **kwargs):
+        raise _Rerun()
 
     def progress(self, *args, **kwargs):
         return _Widget()
@@ -1236,6 +1295,170 @@ def test_the_scan_requests_every_field_it_actually_uses() -> None:
     # ...and the heavy fields we deliberately do not want are gone.
     assert "materials" not in COURSE_WORK_LIST_FIELDS
     assert "submissionHistory" not in STUDENT_SUBMISSION_LIST_FIELDS
+
+
+# --------------------------------------------------------------------------- #
+# 8. Inline "Run Dry-Run" button, per assignment
+# --------------------------------------------------------------------------- #
+
+INLINE_LABEL = "▶ Run Dry-Run for this assignment"
+
+
+def _prime_two(dashboard_app):
+    """Dashboard holding two assignments that are both awaiting review."""
+    app_module, stub = dashboard_app
+    _prime_scan(stub, collect_pending_submissions(two_assignment_pending_service()))
+    return app_module, stub
+
+
+def _render(app_module, stub, service) -> None:
+    """Render the dashboard the way Streamlit actually behaves.
+
+    ``st.rerun()`` does not return: it abandons the current script pass and
+    starts a new one, discarding everything that pass had already emitted.
+    Session state survives; rendered output does not. Modelling both matters
+    for the inline dry-run - the "clear" branch pops the cached result and then
+    reruns, so the stale panel must vanish with the aborted pass rather than
+    lingering in the message log.
+    """
+    start = len(stub.messages)
+    dataframes = len(stub.dataframes)
+    metrics = len(stub.metrics)
+    try:
+        app_module.render_dashboard_tab(service)
+    except _Rerun:
+        del stub.messages[start:]
+        del stub.dataframes[dataframes:]
+        del stub.metrics[metrics:]
+
+
+def test_each_assignment_gets_its_own_inline_dry_run_button(dashboard_app) -> None:
+    app_module, stub = _prime_two(dashboard_app)
+
+    _render(app_module, stub, two_assignment_pending_service())
+
+    inline = [m for m in stub.messages if INLINE_LABEL in m]
+    assert inline == [
+        f"button:{INLINE_LABEL}#dryrun_c1_w1_run",
+        f"button:{INLINE_LABEL}#dryrun_c1_w2_run",
+    ], "one button per assignment, each with a unique widget key"
+
+
+def test_the_inline_button_only_dry_runs_its_own_assignment(
+    dashboard_app, inline_dry_run, monkeypatch
+) -> None:
+    app_module, stub = _prime_two(dashboard_app)
+    graded: list[str] = []
+
+    def _spy(name, doc, cfg, late_penalty_points=0):
+        graded.append(name)
+        return fake_evaluate(name, doc, cfg, late_penalty_points)
+
+    monkeypatch.setattr(dashboard, "evaluate_student_submission", _spy)
+    stub.button_keys = {"dryrun_c1_w1_run"}
+    service = two_assignment_pending_service()
+
+    _render(app_module, stub, service)
+
+    # Only lesson_1's student was graded - lesson_2 was not touched.
+    assert graded == ["Noa"]
+    assert "dryrun_c1_w1" in stub.session_state, "that assignment's slot is filled"
+    assert "dryrun_c1_w2" not in stub.session_state
+    assert service.write_calls == [], "the inline path is read-only too"
+
+
+def test_the_inline_dry_run_saves_a_report_for_that_assignment(
+    dashboard_app, inline_dry_run
+) -> None:
+    app_module, stub = _prime_two(dashboard_app)
+    stub.button_keys = {"dryrun_c1_w1_run"}
+    service = two_assignment_pending_service()
+
+    _render(app_module, stub, service)
+
+    reports = list(inline_dry_run.glob("*.json"))
+    assert len(reports) == 1, "one local report, for the clicked assignment"
+    payload = json.loads(reports[0].read_text(encoding="utf-8"))
+    assert payload["course_work_title"] == "lesson_1"
+    assert payload["entries"][0]["student_name"] == "Noa"
+    # The sibling assignment produced nothing.
+    assert list(inline_dry_run.glob("*.csv")) == [inline_dry_run / "lesson_1.csv"]
+    assert service.write_calls == [], "still read-only: nothing was published"
+
+
+def test_inline_predictions_survive_a_rerun_without_re_spending(
+    dashboard_app, inline_dry_run, monkeypatch
+) -> None:
+    """Streamlit re-runs the script on every click; the result must persist."""
+    app_module, stub = _prime_two(dashboard_app)
+    calls: list[str] = []
+
+    def _spy(name, doc, cfg, late_penalty_points=0):
+        calls.append(name)
+        return fake_evaluate(name, doc, cfg, late_penalty_points)
+
+    monkeypatch.setattr(dashboard, "evaluate_student_submission", _spy)
+    stub.button_keys = {"dryrun_c1_w1_run"}
+    service = two_assignment_pending_service()
+
+    _render(app_module, stub, service)
+    assert calls == ["Noa"]
+
+    # Any later interaction re-renders the dashboard from scratch...
+    calls.clear()
+    stub.button_keys = set()
+    stub.dataframes.clear()
+    _render(app_module, stub, service)
+
+    # ...but re-renders from the cache: no Groq call, no re-evaluation.
+    assert calls == [], "predictions must not be recomputed on every rerun"
+    assert stub.dataframes, "the predictions are still rendered"
+    assert any("Dry-run predictions" in m for m in stub.messages)
+    assert "🔁 Re-run" in " ".join(stub.messages)
+    assert "🗑 Clear" in " ".join(stub.messages)
+
+
+def test_clearing_hides_the_predictions_and_restores_the_button(
+    dashboard_app, inline_dry_run
+) -> None:
+    app_module, stub = _prime_two(dashboard_app)
+    stub.button_keys = {"dryrun_c1_w1_run"}
+    _render(app_module, stub, two_assignment_pending_service())
+    assert stub.session_state["dryrun_c1_w1"]
+
+    stub.button_keys = {"dryrun_c1_w1_clear"}
+    stub.messages.clear()
+    _render(app_module, stub, two_assignment_pending_service())
+
+    assert "dryrun_c1_w1" not in stub.session_state
+    # The pass that cleared was aborted by the rerun, so the predictions are
+    # gone with it...
+    assert not any("Dry-run predictions" in m for m in stub.messages)
+
+    # ...and the following pass offers the plain run button again.
+    stub.messages.clear()
+    _render(app_module, stub, two_assignment_pending_service())
+    assert any(INLINE_LABEL in m for m in stub.messages)
+    assert not any("Dry-run predictions" in m for m in stub.messages)
+    assert "🔁 Re-run" not in " ".join(stub.messages)
+
+
+def test_inline_results_are_kept_apart_per_course(dashboard_app) -> None:
+    """Two classes running the same worksheet must not share a result slot."""
+    app_module, _stub = dashboard_app
+    first = PendingGroup(
+        course=make_course("c1", "A"),
+        assignment=make_work("w9", title="lesson_1"),
+        submissions=(),
+    )
+    second = PendingGroup(
+        course=make_course("c2", "B"),
+        assignment=make_work("w9", title="lesson_1"),
+        submissions=(),
+    )
+
+    assert app_module._dry_run_result_key(first) == "dryrun_c1_w9"
+    assert app_module._dry_run_result_key(second) == "dryrun_c2_w9"
 
 
 
