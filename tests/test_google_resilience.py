@@ -39,9 +39,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import src.api_retry as api_retry  # noqa: E402
 from src.classroom_service import (  # noqa: E402
+    COMMENT_OWNERSHIP_TAG,
     DRIVE_COMMENT_GET_FIELDS,
     DRIVE_COMMENT_LIST_FIELDS,
     FEEDBACK_COMMENT_MARKER,
+    LEGACY_FEEDBACK_COMMENT_MARKER,
     ClassroomService,
     ClassroomServiceError,
 )
@@ -454,7 +456,7 @@ class _FakeDrive:
         return [
             c
             for c in self.comments
-            if c["content"].startswith(FEEDBACK_COMMENT_MARKER)
+            if ClassroomService._is_our_comment(c["content"])
         ]
 
 @pytest.fixture(autouse=True)
@@ -674,37 +676,76 @@ def test_feedback_is_left_as_a_drive_comment():
     assert len(drive.calls["create"]) == 1
     assert drive.calls["create"][0]["fileId"] == "doc-1"
     body = drive.calls["create"][0]["body"]
-    assert "כל הכבוד, הפתרון נכון!" in body["content"]
-    assert body["content"].startswith(FEEDBACK_COMMENT_MARKER)
+    assert body["content"] == f"{COMMENT_OWNERSHIP_TAG}כל הכבוד, הפתרון נכון!"
     assert "92" not in body["content"], "the grade is not stamped into the bubble"
 
 
+def test_no_visible_prefix_is_prepended_to_the_feedback():
+    """The student reads the feedback text itself - nothing before it.
+
+    No robot emoji, no "automated feedback" banner: the rendered bubble must
+    display exactly what the evaluator wrote. Ownership is carried by the
+    invisible tag only.
+    """
+    service, drive = _fake_service()
+
+    service.publish_feedback_comment("doc-1", "כל הכבוד, הפתרון נכון!")
+
+    content = drive.calls["create"][0]["body"]["content"]
+    assert "🤖" not in content
+    assert "משוב אוטומטי" not in content
+    assert "מהמערכת" not in content
+    visible = content.lstrip(COMMENT_OWNERSHIP_TAG)
+    assert visible.startswith("כל הכבוד"), (
+        "after the invisible tag, the feedback text starts immediately"
+    )
+
+
 def test_the_score_is_never_written_into_the_comment():
-    """The comment is marker + feedback text, whatever the score is.
+    """The comment is the tag + feedback text, whatever the score is.
 
     The grade travels through Classroom's own grade field, so the bubble stays
-    clean - and the heading is identical for a scored and an unscored run.
+    clean - and the body is identical for a scored and an unscored run.
     """
     for score in (None, 0, 42, 95, 100):
         service, drive = _fake_service()
         service.publish_feedback_comment("doc-1", "משוב נקי", score=score)
         content = drive.calls["create"][0]["body"]["content"]
-        assert content == f"{FEEDBACK_COMMENT_MARKER}\n\nמשוב נקי"
+        assert content == f"{COMMENT_OWNERSHIP_TAG}משוב נקי"
         assert "ציון" not in content
         assert "/ 100" not in content
         assert "—" not in content, "no score suffix left on the heading"
 
 
-def test_the_marker_stays_on_a_line_of_its_own():
-    """Idempotency depends on the marker being the whole first line."""
+def test_the_ownership_tag_is_invisible_and_recognised():
+    """The tag renders as nothing but still identifies our comments.
+
+    All three characters are zero-advance-width, so the Docs UI shows the
+    feedback text starting on the very first line - while ``_is_our_comment``
+    still matches, which is what keeps publishing idempotent.
+    """
+    assert COMMENT_OWNERSHIP_TAG == "\u200b\u2060\u200d"
+    import unicodedata
+
+    for char in COMMENT_OWNERSHIP_TAG:
+        assert unicodedata.category(char) == "Cf", (
+            f"U+{ord(char):04X} must be a zero-width format character, "
+            f"got {unicodedata.category(char)}"
+        )
+    assert ClassroomService._is_our_comment(f"{COMMENT_OWNERSHIP_TAG}משוב")
+    assert not ClassroomService._is_our_comment("תודה על ההגשה!")
+
+
+def test_the_feedback_starts_on_the_first_line():
+    """No heading row: the feedback text is the first visible line."""
     service, drive = _fake_service()
 
     service.publish_feedback_comment("doc-1", "משוב", score=88)
 
     content = drive.comments[0]["content"]
-    assert content.splitlines()[0] == FEEDBACK_COMMENT_MARKER
-    # _our_comments matches with startswith(), which the first line still satisfies.
-    assert content.startswith(FEEDBACK_COMMENT_MARKER)
+    visible = content.lstrip(COMMENT_OWNERSHIP_TAG)
+    assert visible.splitlines()[0] == "משוב"
+    assert ClassroomService._is_our_comment(content)
 
 
 def test_the_drive_comments_api_is_used():
@@ -796,11 +837,11 @@ def test_republishing_updates_the_existing_comment():
 def test_comments_posted_before_the_score_removal_are_still_matched():
     """A comment carrying the old scored heading must not be orphaned.
 
-    :meth:`_our_comments` matches with ``startswith(MARKER)``, and the old
-    heading was ``MARKER + "  —  ציון: 88 / 100"``, so the marker is still a
-    prefix of the first line. Re-publishing therefore *rewrites* such a
-    comment rather than leaving it behind and adding a second bubble - and
-    the rewrite is what strips the stale score off it.
+    :meth:`_is_our_comment` matches the legacy banner, and the old heading
+    was ``MARKER + "  —  ציון: 88 / 100"``, so the banner is still a prefix
+    of the first line. Re-publishing therefore *rewrites* such a comment
+    rather than leaving it behind and adding a second bubble - and the
+    rewrite is what strips both the stale score and the stale banner off it.
     """
     service, drive = _fake_service(
         comments=[
@@ -814,8 +855,9 @@ def test_comments_posted_before_the_score_removal_are_still_matched():
     assert result["commentId"] == "c1"
     assert len(drive.comments) == 1, "no duplicate bubble left behind"
     content = drive.comments[0]["content"]
-    assert content == f"{FEEDBACK_COMMENT_MARKER}\n\nמשוב חדש"
+    assert content == f"{COMMENT_OWNERSHIP_TAG}משוב חדש"
     assert "ציון" not in content, "the stale score line is gone after the rewrite"
+    assert "משוב אוטומטי" not in content, "the stale banner is gone too"
 
 
 def test_republishing_keeps_one_comment_across_many_runs():
@@ -826,6 +868,30 @@ def test_republishing_keeps_one_comment_across_many_runs():
 
     assert len(drive.comments) == 1
     assert "משוב 69" in drive.comments[0]["content"]
+
+
+def test_comments_carrying_the_legacy_banner_are_migrated_not_duplicated():
+    """The first run after the banner removal must rewrite, not stack.
+
+    Documents that already have a visible-banner bubble get it replaced with
+    the invisible-tag format on the next publish - one bubble before, one
+    bubble after, and no trace of the old banner in the new text.
+    """
+    service, drive = _fake_service(
+        comments=[
+            {"id": "c1", "content": f"{LEGACY_FEEDBACK_COMMENT_MARKER}\n\nישן"},
+        ]
+    )
+
+    result = service.publish_feedback_comment("doc-1", "משוב עדכני", score=90)
+
+    assert result["action"] == "updated", "the legacy bubble was recognised"
+    assert result["commentId"] == "c1"
+    assert len(drive.comments) == 1, "no second bubble was added"
+    content = drive.comments[0]["content"]
+    assert content == f"{COMMENT_OWNERSHIP_TAG}משוב עדכני"
+    assert "משוב אוטומטי" not in content
+    assert "🤖" not in content
 
 
 def test_extra_marked_duplicates_are_cleaned_up():
@@ -864,7 +930,7 @@ def test_teacher_comments_are_never_touched():
     assert len(drive.comments) == 3, "both teacher comments plus our new one"
     assert "תודה על ההגשה!" in drive.comments[0]["content"]
     assert "שאלה: למה השתמשת ב־for?" in drive.comments[1]["content"]
-    assert drive.comments[2]["content"].startswith(FEEDBACK_COMMENT_MARKER)
+    assert ClassroomService._is_our_comment(drive.comments[2]["content"])
 
 
 def test_a_locked_comment_is_replaced_rather_than_left_stale():
@@ -949,10 +1015,14 @@ def test_mismatched_comment_content_is_reported():
 
 
 def test_utf16_anchor_indexing_handles_non_bmp_characters():
-    """The robot emoji is 2 UTF-16 units; naive len() would misplace the anchor."""
+    """Hebrew is BMP; the tag is too. Naive len() stays correct here."""
     assert ClassroomService._utf16_len("ab") == 2
     assert ClassroomService._utf16_len("משוב") == 4
     assert ClassroomService._utf16_len("\U0001f916") == 2
+    assert ClassroomService._utf16_len(COMMENT_OWNERSHIP_TAG) == len(
+        COMMENT_OWNERSHIP_TAG
+    )
+    # The legacy banner still needs the +1: its robot emoji is non-BMP.
     assert ClassroomService._utf16_len(FEEDBACK_COMMENT_MARKER) == len(
         FEEDBACK_COMMENT_MARKER
     ) + 1
@@ -1306,10 +1376,10 @@ def test_pagination_still_works_and_repeats_the_selector():
 
     pages = [
         {
-            "comments": [{"id": "a", "content": f"{FEEDBACK_COMMENT_MARKER}\n\n1"}],
+            "comments": [{"id": "a", "content": f"{COMMENT_OWNERSHIP_TAG}1"}],
             "nextPageToken": "page-2",
         },
-        {"comments": [{"id": "b", "content": f"{FEEDBACK_COMMENT_MARKER}\n\n2"}]},
+        {"comments": [{"id": "b", "content": f"{COMMENT_OWNERSHIP_TAG}2"}]},
     ]
     seen_tokens: list[Optional[str]] = []
     seen_selectors: list[Optional[str]] = []
@@ -1353,7 +1423,7 @@ def test_the_whole_comment_lifecycle_runs_clean():
     selectors are genuinely valid - not merely unchecked.
     """
     service, drive = _fake_service(
-        comments=[{"id": "c1", "content": f"{FEEDBACK_COMMENT_MARKER}\n\nישן"}]
+        comments=[{"id": "c1", "content": f"{COMMENT_OWNERSHIP_TAG}ישן"}]
     )
 
     result = service.publish_feedback_comment("doc-1", "משוב עדכני", score=95)

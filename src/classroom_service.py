@@ -103,13 +103,15 @@ PENDING_SUBMISSION_STATE = "TURNED_IN"
 COMMENT_OWNERSHIP_TAG = "\u200b\u2060\u200d"
 
 # The banner this tag replaced. Comments published by earlier runs still start
-# with it, so :meth:`ClassroomService._our_comments` must keep recognising them
+# with it, so :meth:`ClassroomService._is_our_comment` must keep recognising them
 # - otherwise the first run after this change would add a second bubble to every
 # document that already had feedback instead of rewriting it. The next publish
 # rewrites such a comment in the new format, which migrates it automatically.
 LEGACY_FEEDBACK_COMMENT_MARKER = "🤖 משוב אוטומטי מהמערכת"
 
 # Backwards-compatible alias: the old public name for the visible banner.
+# New comments no longer carry it - they carry COMMENT_OWNERSHIP_TAG instead -
+# but external code (and these tests) may still reference the legacy banner.
 FEEDBACK_COMMENT_MARKER = LEGACY_FEEDBACK_COMMENT_MARKER
 
 # Partial-response selector for ``drive.comments().list``.
@@ -858,19 +860,26 @@ class ClassroomService:
 
     @staticmethod
     def _format_feedback_comment(feedback_text: str) -> str:
-        """Render the comment body: the marker on its own line, then the text.
+        """Render the comment body: the feedback text, nothing else visible.
 
-        The marker is what makes publishing idempotent: a re-run recognises
-        and rewrites its own comment instead of adding another bubble. It must
-        therefore stay the first line, and it must stay *alone* on it -
-        :meth:`_our_comments` matches on ``content.startswith(MARKER)``.
+        The student reads exactly what the evaluator wrote - no banner, no
+        robot emoji, no Hebrew "automated feedback" prefix. Ownership lives in
+        the invisible :data:`COMMENT_OWNERSHIP_TAG` prepended to the text: it
+        is what makes publishing idempotent, because
+        :meth:`_is_our_comment` recognises our comments by it and a re-run
+        rewrites its own comment instead of adding another bubble.
+
+        Comments carrying the legacy visible banner are still recognised (and
+        rewritten in this format) via :meth:`_is_our_comment`, so the first
+        run after this change migrates old bubbles instead of duplicating
+        them.
 
         The numeric score is deliberately **not** rendered. The grade already
         reaches the student through Classroom's own grade field and the
         exported report, so stamping it into the bubble was noise - and it
         made the heading differ between scored and unscored runs, for no gain.
         """
-        return f"{FEEDBACK_COMMENT_MARKER}\n\n{feedback_text.strip()}"
+        return f"{COMMENT_OWNERSHIP_TAG}{feedback_text.strip()}"
 
     def publish_feedback_comment(
         self,
@@ -882,9 +891,9 @@ class ClassroomService:
 
         ``score`` is accepted for call-site compatibility (``app.py`` and
         ``main.py`` pass the grade) but is **not** written into the comment.
-        The bubble carries the marker and the feedback text only; the grade
-        itself reaches the student through Classroom's grade field. See
-        :meth:`_format_feedback_comment`.
+        The bubble carries the feedback text only (plus an invisible ownership
+        tag); the grade itself reaches the student through Classroom's grade
+        field. See :meth:`_format_feedback_comment`.
 
         The Classroom API has no submission-comment endpoint
         (studentSubmissions supports only get/list/modifyAttachments/patch/
@@ -895,8 +904,8 @@ class ClassroomService:
         ``https://www.googleapis.com/auth/drive`` OAuth scope (see
         ``src/auth.py``).
 
-        Publishing is idempotent. Every comment this app leaves starts with
-        :data:`FEEDBACK_COMMENT_MARKER`, so a re-run:
+        Publishing is idempotent. Every comment this app leaves carries the
+        invisible :data:`COMMENT_OWNERSHIP_TAG`, so a re-run:
 
         * rewrites that comment with the current text instead of adding a
           second bubble;
@@ -974,12 +983,26 @@ class ClassroomService:
             "duplicatesRemoved": removed,
         }
 
+    @staticmethod
+    def _is_our_comment(content: str) -> bool:
+        """Whether a comment body was written by this app.
+
+        Matches the invisible :data:`COMMENT_OWNERSHIP_TAG` on new comments
+        and the legacy visible banner (:data:`LEGACY_FEEDBACK_COMMENT_MARKER`)
+        on comments published by earlier runs. Matching both is what lets the
+        first run after the banner removal *rewrite* the old bubble in the
+        new format instead of adding a second one beside it.
+        """
+        return content.startswith(COMMENT_OWNERSHIP_TAG) or content.startswith(
+            LEGACY_FEEDBACK_COMMENT_MARKER
+        )
+
     def _our_comments(self, doc_id: str) -> list[dict[str, Any]]:
         """Comments on ``doc_id`` that this app wrote, oldest first.
 
-        Only comments whose content starts with
-        :data:`FEEDBACK_COMMENT_MARKER` are returned, so comments written by
-        the teacher are never matched, rewritten, or deleted.
+        Only comments recognised by :meth:`_is_our_comment` are returned, so
+        comments written by the teacher are never matched, rewritten, or
+        deleted.
 
         ``fields`` is not optional here. ``comments.list`` is one of the Drive
         v3 methods that refuses to guess a partial response, and answers
@@ -1006,7 +1029,7 @@ class ClassroomService:
             )
             for comment in response.get("comments", []):
                 content = (comment.get("content") or "").strip()
-                if content.startswith(FEEDBACK_COMMENT_MARKER):
+                if self._is_our_comment(content):
                     found.append(comment)
             page_token = response.get("nextPageToken")
             if not page_token:

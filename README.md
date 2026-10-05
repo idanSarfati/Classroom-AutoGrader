@@ -165,8 +165,9 @@ comment still reaches the student:
 A grade failure never blocks the comment, so a restricted assignment still
 delivers feedback.
 
-**Publishing is idempotent.** Every comment this app leaves starts with the
-`🤖 משוב אוטומטי מהמערכת` marker, so a re-run:
+**Publishing is idempotent.** Every comment this app leaves carries an invisible
+ownership tag (zero-width characters - the student sees only the feedback
+text), so a re-run:
 
 * **updates** that comment with the current text instead of adding a second
   bubble - running the release ten times still leaves exactly one comment;
