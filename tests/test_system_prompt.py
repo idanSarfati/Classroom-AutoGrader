@@ -17,8 +17,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.llm_evaluator import (  # noqa: E402
@@ -40,48 +38,46 @@ LINK_REMINDER_HE = (
 
 
 def test_link_submissions_earn_full_credit() -> None:
-    assert "Full Credit for Link Submissions" in SYSTEM_PROMPT
-    assert "VALID, genuine attempt" in SYSTEM_PROMPT
-    assert "NEVER deduct points" in SYSTEM_PROMPT
+    assert "Link Submissions:" in SYSTEM_PROMPT
+    assert "valid, full-attempt evidence" in SYSTEM_PROMPT
+    assert "NEVER dock points" in SYSTEM_PROMPT
 
 
 def test_link_grading_section_is_present() -> None:
-    assert "Grading Submissions That Use Links Instead of Pasted Code" in SYSTEM_PROMPT
-    # The model must not pretend it can open the link.
-    assert "You cannot fetch or open URLs" in SYSTEM_PROMPT
+    assert "- Link Submissions: Treat links (Drive, GitHub, Replit)" in SYSTEM_PROMPT
+    # The model must not pretend it can open the link: it may only judge what
+    # is actually written in the student's document.
+    assert "Base evidence ONLY on the document text" in SYSTEM_PROMPT
     # A link-only document is still graded in the generous range.
-    assert "just a link" in SYSTEM_PROMPT
+    assert "valid, full-attempt evidence" in SYSTEM_PROMPT
 
 
 def test_hebrew_link_reminder_is_verbatim() -> None:
     assert LINK_REMINDER_HE in SYSTEM_PROMPT
-    assert "MUST NOT reduce the score" in SYSTEM_PROMPT
+    assert "score-neutral" in SYSTEM_PROMPT
     # The reminder must not blow the 3-5 sentence output budget.
-    assert "3-5 sentence budget" in SYSTEM_PROMPT
+    assert "3-5 sentences max" in SYSTEM_PROMPT
 
 
 def test_scoring_curve_targets_90_to_95() -> None:
     assert "Target 90-95 for good work" in SYSTEM_PROMPT
-    assert "2 to 5 points from the WHOLE assignment" in SYSTEM_PROMPT
-    assert "never 85" in SYSTEM_PROMPT
+    assert "2-5 points TOTAL for the whole assignment" in SYSTEM_PROMPT
+    # Decent work stays in the 90s; the mid-80s are only for substantial gaps.
+    assert "scores 93-98" in SYSTEM_PROMPT
     # The old 80-90 target must be gone from every section.
     assert "80-90" not in SYSTEM_PROMPT
     # Explicit score bands, with 80-85 reserved for substantial gaps.
-    assert "* 90-95: thoughtful and correct overall" in SYSTEM_PROMPT
-    assert "* 80-85: a substantial part is missing or wrong" in SYSTEM_PROMPT
+    assert "90-95 (minor gaps, 2-5 pts each)" in SYSTEM_PROMPT
+    assert "80-85 (substantial missing parts)" in SYSTEM_PROMPT
     # The two examples the teacher called out are priced explicitly.
-    assert "printing the sum of the values instead of the type of each one" in (
-        SYSTEM_PROMPT
-    )
-    assert "hardcoding a string instead of using the variable or interpolation" in (
-        SYSTEM_PROMPT
-    )
+    assert "printing sum instead of type" in SYSTEM_PROMPT
+    assert "hardcoding literal strings" in SYSTEM_PROMPT
 
 
 def test_deduction_breakdown_contract_is_prompted() -> None:
     assert "Deduction Breakdown (deduction_breakdown" in SYSTEM_PROMPT
-    assert "MUST sum exactly to (100 - score)" in SYSTEM_PROMPT
-    assert "return an empty list []" in SYSTEM_PROMPT
+    assert "sum MUST equal 100 - score" in SYSTEM_PROMPT
+    assert "Empty list [] if no deductions" in SYSTEM_PROMPT
     # The loose-mode fallback prompt must ask for it too, or those stages lose it.
     assert "deduction_breakdown" in evaluator._JSON_ONLY_INSTRUCTION
 
@@ -98,28 +94,30 @@ def test_prompt_stays_within_the_request_budget() -> None:
 
 
 def test_typos_cost_nothing() -> None:
-    assert "Typo & Formatting Tolerance" in SYSTEM_PROMPT
+    assert "Typos & Formatting (0 point penalty)" in SYSTEM_PROMPT
     assert "`pint` instead of `print`" in SYSTEM_PROMPT
-    assert "keep the status CORRECT, deduct 0 points" in SYSTEM_PROMPT
+    assert "0 points deducted, status CORRECT" in SYSTEM_PROMPT
     # Curly quotes and stray underscores are explicitly free.
-    assert "smart” quotes" in SYSTEM_PROMPT or "“smart” quotes" in SYSTEM_PROMPT
-    assert 'name = "_bob"_____' in SYSTEM_PROMPT
+    assert "curly quotes" in SYSTEM_PROMPT
+    assert "`_bob_____`" in SYSTEM_PROMPT
 
 
 def test_only_real_gaps_are_deducted() -> None:
-    assert "Deduct Points ONLY for Real Requirements / Logic Gaps" in SYSTEM_PROMPT
+    assert "Dockable Gaps ONLY" in SYSTEM_PROMPT
     # Docked: unmarked multiple-choice answers, hardcoded strings.
-    assert "multiple-choice / true-false options" in SYSTEM_PROMPT
-    assert "hardcoding a literal instead of using the variable" in SYSTEM_PROMPT
-    # Never docked: the typo/formatting/naming classes.
-    assert "typos, English spelling inside strings, quote style" in SYSTEM_PROMPT
-    assert "When in doubt, do not deduct" in SYSTEM_PROMPT
+    assert "unmarked MC options" in SYSTEM_PROMPT
+    assert "hardcoding literals instead of using variables" in SYSTEM_PROMPT
+    # Never docked: the typo/formatting classes sit in their own 0-point
+    # section, and thin evidence resolves in the student's favour.
+    assert "Typos & Formatting (0 point penalty)" in SYSTEM_PROMPT
+    assert "Default to encouragement" in SYSTEM_PROMPT
 
 
 def test_typo_feedback_is_friendly_and_score_neutral() -> None:
-    assert "Typos & formatting slips (0 points)" in SYSTEM_PROMPT
-    assert "does not affect the grade" in SYSTEM_PROMPT
-    assert "never deduct for it" in SYSTEM_PROMPT
+    assert "Typos & Formatting (0 point penalty)" in SYSTEM_PROMPT
+    assert "0 points deducted" in SYSTEM_PROMPT
+    # The only typo mentioned is framed as a kind heads-up, never a complaint.
+    assert "friendly heads-up" in SYSTEM_PROMPT
 
 
 # --------------------------------------------------------------------------
@@ -134,7 +132,7 @@ def _load(name: str) -> AssignmentConfig:
 
 def test_prompt_tells_the_model_to_skip_exempt_tasks() -> None:
     assert '"exempt": true' in SYSTEM_PROMPT
-    assert "ignore it completely" in SYSTEM_PROMPT
+    assert "must be ignored completely" in SYSTEM_PROMPT
 
 
 def test_worksheet_task_5_is_exempt() -> None:
