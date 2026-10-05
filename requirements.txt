@@ -5,6 +5,10 @@ google-auth-httplib2==0.4.2
 google-auth-oauthlib==1.4.1
 openai==3.19.2
 pandas>=2.0.0
+# Pinned explicitly: without this, Streamlit Cloud resolves the newest pyarrow at
+# build time and swaps it in at runtime, which crashes the app. 24.0.0 is the
+# newest release that satisfies Streamlit's "pyarrow<26,!=25.0.0" constraint.
+pyarrow==24.0.0
 python-bidi==0.6.11
 python-dotenv==1.2.3
 pydantic==2.13.5
