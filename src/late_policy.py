@@ -10,16 +10,28 @@ own line in the deduction breakdown.
 
 Lateness is resolved from the strongest available signal, in this order:
 
-1. ``lateState`` - Classroom's own verdict (``LATE`` / ``ON_TIME``). It already
+1. The submission's original hand-in time - from submission history, or the
+   ``creationTime`` Classroom reports on the submission resource
+   (:attr:`src.models.StudentSubmission.first_submitted_at`). A resubmission
+   moves ``submitted_at`` (the last update) but not this instant, so work
+   first handed in on time stays on time no matter how late the resubmission
+   is. This is the first preference: if the original submission was on time,
+   no late penalty is charged for the resubmission.
+2. ``lateState`` - Classroom's own verdict (``LATE`` / ``ON_TIME``). It already
    accounts for the teacher's late-submission policy and any grace period, so
    it wins whenever the API reports it.
-2. ``late`` - the boolean flag Classroom computes against the due date.
-3. The timestamps - ``submitted_at`` compared with the coursework's exact due
+3. ``late`` - the boolean flag Classroom computes against the due date.
+4. The timestamps - ``submitted_at`` compared with the coursework's exact due
    instant. This is an approximation (it is the submission's *last update*,
    not a dedicated hand-in timestamp), so it is only a fallback and a warning
-   is logged whenever it decides the outcome.
+   is logged whenever it decides the outcome. When it is the only evidence of
+   lateness and a previous grading comment exists on the document, the comment
+   is consulted: it opens with the late notice iff an earlier run already
+   charged the penalty for this submission's original hand-in; no notice means
+   the original was on time and the late timestamp belongs to a resubmission,
+   so no penalty is charged.
 
-If none of the three is available the submission is treated as on time: a
+If none of the above is available the submission is treated as on time: a
 missing signal must never invent a penalty on a student's grade.
 """
 
@@ -80,7 +92,7 @@ _ON_TIME_STATES = {"ON_TIME", "NEEDS_GRADING"}
 
 # The submission fields this policy reads. Used to turn a stale-schema failure
 # into an actionable message (see :func:`_require_policy_fields`).
-_POLICY_FIELDS = ("late_state", "is_late", "submitted_at")
+_POLICY_FIELDS = ("late_state", "is_late", "submitted_at", "first_submitted_at")
 
 
 def _require_policy_fields(submission: StudentSubmission) -> None:
@@ -126,14 +138,33 @@ def _as_utc(moment: datetime) -> datetime:
 
 
 def is_late(
-    submission: StudentSubmission, coursework: Optional[CourseWork] = None
+    submission: StudentSubmission,
+    coursework: Optional[CourseWork] = None,
+    *,
+    first_submitted_at: Optional[datetime] = None,
+    prior_comment: Optional[str] = None,
 ) -> bool:
     """Whether ``submission`` counts as late for ``coursework``.
 
     Returns ``False`` whenever the available signals cannot establish that the
     work was late - see the module docstring for the resolution order.
+
+    ``first_submitted_at`` is the original hand-in instant from submission
+    history (or the submission resource's creation time); it overrides every
+    weaker signal, so a late resubmission of work first handed in on time is
+    not penalised. ``prior_comment`` is the text of this app's previous
+    grading comment on the submission's document; it is only consulted when
+    history is unavailable and the last-update timestamp alone says late.
     """
     _require_policy_fields(submission)
+    due = coursework.due_datetime if coursework is not None else None
+    due_utc = _as_utc(due) if due is not None else None
+
+    # 1. Classroom's own verdict already accounts for grace periods. This is
+    #    the most authoritative signal - if Classroom says the work is late,
+    #    it was turned in after the deadline regardless of when the submission
+    #    record was first created (creationTime only marks when the draft was
+    #    opened, not when it was handed in).
     state = (submission.late_state or "").strip().upper()
     if state:
         if state == "LATE":
@@ -143,12 +174,38 @@ def is_late(
         # An unrecognised state is not a verdict; fall through to the other
         # signals rather than guessing.
 
+    # 2. The boolean flag Classroom computes against the due date.
     if submission.is_late is not None:
         return bool(submission.is_late)
 
-    due = coursework.due_datetime if coursework is not None else None
-    if due is not None and submission.submitted_at is not None:
-        due_utc = _as_utc(due)
+    # 3. Submission history: the original hand-in instant. A resubmission
+    #    moves ``submitted_at`` but not this one, so it is the strongest
+    #    signal for the "on time originally, late resubmission" case - but
+    #    only consulted when Classroom provides no verdict at all.
+    first = (
+        first_submitted_at
+        if first_submitted_at is not None
+        else submission.first_submitted_at
+    )
+    if first is not None:
+        if due_utc is None:
+            # No deadline to measure against - nothing can be late.
+            return False
+        late = _as_utc(first) > due_utc
+        logger.info(
+            "Submission history for %s: first submitted %s, due %s -> late=%s",
+            submission.submission_id or "?",
+            _as_utc(first).isoformat(),
+            due_utc.isoformat(),
+            late,
+        )
+        return late    # 3. The boolean flag.
+    if submission.is_late is not None:
+        return bool(submission.is_late)
+
+    # 4. Timestamp fallback: the submission's *last update*, not its first
+    #    hand-in, so a late resubmission can make on-time work look late.
+    if due_utc is not None and submission.submitted_at is not None:
         submitted_utc = _as_utc(submission.submitted_at)
         late = submitted_utc > due_utc
         logger.warning(
@@ -159,8 +216,14 @@ def is_late(
             due_utc.isoformat(),
             late,
         )
+        if late and prior_comment is not None:
+            # A previous grading run already commented on this document.
+            # If it never mentioned lateness, the original hand-in was on
+            # time and the late timestamp belongs to a resubmission.
+            return _has_late_notice(prior_comment)
         return late
 
+    # 5. No signal at all: never invent a penalty.
     logger.warning(
         "No lateness signal for submission %s; grading it as on time.",
         submission.submission_id or "?",
@@ -172,14 +235,25 @@ def penalty_for(
     submission: StudentSubmission,
     coursework: Optional[CourseWork] = None,
     penalty_points: int = DEFAULT_LATE_PENALTY_POINTS,
+    *,
+    first_submitted_at: Optional[datetime] = None,
+    prior_comment: Optional[str] = None,
 ) -> int:
     """Points to deduct for ``submission``: the penalty if late, else zero.
 
     Negative or oversized values are clamped, so a misconfigured
     ``LATE_PENALTY_POINTS`` can only ever make the penalty smaller or equal to
     the whole grade - never push a score below zero.
+
+    ``first_submitted_at`` and ``prior_comment`` are forwarded to
+    :func:`is_late`; see there for the resubmission-aware resolution order.
     """
-    if penalty_points <= 0 or not is_late(submission, coursework):
+    if penalty_points <= 0 or not is_late(
+        submission,
+        coursework,
+        first_submitted_at=first_submitted_at,
+        prior_comment=prior_comment,
+    ):
         return 0
     return max(0, min(100, int(penalty_points)))
 
@@ -205,6 +279,23 @@ def _strip_prior_notice(feedback: str) -> str:
     if _LATE_NOTICE_MARKER in first and len(first) <= _MAX_NOTICE_CHARS:
         return rest.strip()
     return text
+
+
+def _has_late_notice(text: str) -> bool:
+    """True when ``text`` opens with the late-penalty notice.
+
+    Recognises the notice an earlier run of :func:`apply_late_penalty` left
+    on the document, whatever its exact wording (it was corrected once), using
+    the same marker and length bounds as :func:`_strip_prior_notice`. Used by
+    the fallback: when submission history is unavailable and the last-update
+    timestamp alone says late, a previous comment that never mentioned
+    lateness means the original hand-in was on time.
+    """
+    text = (text or "").strip()
+    if not text:
+        return False
+    first, _separator, _rest = text.partition("\n\n")
+    return _LATE_NOTICE_MARKER in first and len(first) <= _MAX_NOTICE_CHARS
 
 
 def apply_late_penalty(result: GradingResult, points: int) -> GradingResult:

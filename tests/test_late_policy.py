@@ -60,6 +60,7 @@ def submission(
     late_state: str | None = None,
     is_late: bool | None = None,
     submitted_at: datetime | None = None,
+    first_submitted_at: datetime | None = None,
     name: str = "Noa",
 ) -> StudentSubmission:
     return StudentSubmission(
@@ -71,6 +72,7 @@ def submission(
         late_state=late_state,
         is_late=is_late,
         submitted_at=submitted_at,
+        first_submitted_at=first_submitted_at,
     )
 
 
@@ -155,6 +157,69 @@ def test_submitted_at_without_a_due_date_cannot_be_judged():
     """A missing deadline is not evidence of lateness."""
     late = submission(submitted_at=DUE + timedelta(days=5))
     assert is_late(late, coursework(due=None)) is False
+
+
+def test_classroom_late_state_wins_over_first_submitted_at():
+    """Classroom's own verdict takes priority over creationTime.
+
+    ``creationTime`` (``first_submitted_at``) only marks when the submission
+    record was opened, not when it was handed in. A student can create a
+    submission days before the deadline but turn it in late — Classroom's
+    ``late_state`` correctly reflects that, and it wins.
+    """
+    sub = submission(
+        late_state="LATE",
+        is_late=True,
+        first_submitted_at=DUE - timedelta(hours=3),
+        submitted_at=DUE + timedelta(days=2),
+    )
+    assert is_late(sub, coursework()) is True
+    assert penalty_for(sub, coursework(), 10) == 10
+
+
+def test_first_submitted_at_late_is_still_late():
+    """An original hand-in after the deadline is late, whatever follows."""
+    sub = submission(
+        first_submitted_at=DUE + timedelta(hours=3),
+        submitted_at=DUE - timedelta(hours=1),
+    )
+    assert is_late(sub, coursework()) is True
+    assert penalty_for(sub, coursework(), 10) == 10
+
+
+def test_first_submitted_at_without_a_due_date_is_on_time():
+    sub = submission(first_submitted_at=DUE + timedelta(days=5))
+    assert is_late(sub, coursework(due=None)) is False
+
+
+def test_timestamp_fallback_still_decides_without_history():
+    # No history signal: the last-update timestamp keeps deciding on its own.
+    late = submission(submitted_at=DUE + timedelta(minutes=1))
+    on_time = submission(submitted_at=DUE - timedelta(hours=1))
+    assert is_late(late, coursework()) is True
+    assert is_late(on_time, coursework()) is False
+
+
+def test_prior_late_notice_confirms_a_late_resubmission():
+    """Fallback: history unavailable, previous comment already charged the penalty."""
+    late = submission(submitted_at=DUE + timedelta(days=2))
+    prior = f"{late_penalty_sentence(10)}\n\nכל הכבוד, עבודה יפה מאוד!"
+    assert is_late(late, coursework(), prior_comment=prior) is True
+    assert penalty_for(late, coursework(), 10, prior_comment=prior) == 10
+
+
+def test_prior_comment_without_late_notice_excuses_a_late_resubmission():
+    """Fallback: history unavailable, previous comment never mentioned lateness."""
+    late = submission(submitted_at=DUE + timedelta(days=2))
+    prior = "כל הכבוד, עבודה יפה מאוד!\n\nהמשיכו כך."
+    assert is_late(late, coursework(), prior_comment=prior) is False
+    assert penalty_for(late, coursework(), 10, prior_comment=prior) == 0
+
+
+def test_no_prior_comment_keeps_the_timestamp_verdict():
+    # Nothing to inspect: a first-time late submission is still penalised.
+    late = submission(submitted_at=DUE + timedelta(days=2))
+    assert is_late(late, coursework(), prior_comment=None) is True
 
 
 def test_work_without_the_coursework_object_is_safe():
@@ -538,6 +603,9 @@ def test_get_submissions_captures_the_lateness_signals():
                             "state": "TURNED_IN",
                             "late": True,
                             "updateTime": "2026-03-02T09:00:00Z",
+                            # creationTime is the original hand-in instant here,
+                            # equally late - the policy must surface it.
+                            "creationTime": "2026-03-02T09:00:00Z",
                         }
                     ]
                 }
@@ -559,6 +627,9 @@ def test_get_submissions_captures_the_lateness_signals():
     got = submissions[0]
     assert got.is_late is True
     assert got.submitted_at == datetime(2026, 3, 2, 9, 0, tzinfo=timezone.utc)
+    assert got.first_submitted_at == datetime(
+        2026, 3, 2, 9, 0, tzinfo=timezone.utc
+    )
     assert is_late(got, coursework()) is True
 
 

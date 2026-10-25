@@ -1,0 +1,104 @@
+{
+  "assignment_title": "תרגול למבחן יחידות 1-2",
+  "topic": "דף חזרה מקיף למבחן רבעוני בפייתון יחידות 1-2: משתנים, טיפוסי נתונים, print, השמה, מעקב ריצה, דיבאגינג וכתיבת קוד",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א': שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "part_a_q1",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט של: print(10, \"apples\", True)? יש לוודא רווחים בין הפרמטרים. תשובה שגויה = 0 נקודות לחלק זה (5 נקודות).",
+          "correct_answer": "10 apples True"
+        },
+        {
+          "id": "part_a_q2",
+          "type": "multiple_choice",
+          "question": "איזה שם משתנה יגרום לשגיאת תחביר (SyntaxError)? התשובה: first name (בגלל הרווח בשם המשתנה). בחירה שגויה = 0 נקודות לחלק זה (5 נקודות).",
+          "correct_answer": "first name"
+        },
+        {
+          "id": "part_a_q3",
+          "type": "multiple_choice",
+          "question": "מה תדפיס הפקודה print(type(data)) עבור data = 7.0? בחירה שגויה = 0 נקודות לחלק זה (5 נקודות).",
+          "correct_answer": "<class 'float'>"
+        },
+        {
+          "id": "part_a_q4",
+          "type": "multiple_choice",
+          "question": "מה המשמעות של השורה x = x + 1? בחירה שגויה = 0 נקודות לחלק זה (5 נקודות).",
+          "correct_answer": "פעולת הצבה שבה הערך החדש של x יהיה הערך הקודם שלו בתוספת 1"
+        },
+        {
+          "id": "part_a_q5",
+          "type": "multiple_choice",
+          "question": "איזה מבין הערכים הבאים הוא מטיפוס בוליאני (bool)? שים לב: המחרוזת \"True\" אינה bool. בחירה שגויה = 0 נקודות לחלק זה (5 נקודות).",
+          "correct_answer": "False"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב': מעקב ריצה",
+      "weight": 30,
+      "questions": [
+        {
+          "id": "part_b_q1",
+          "type": "expected_output",
+          "question": "עקוב אחר שינוי ערכי score1 ו-score2 והדפסתם. פלט שגוי לחלוטין = 0. חישוב נכון עם שגיאת פורמט במחרוזת 'Scores:' = הורדת 2 נקודות.",
+          "expected_output": "Scores: 90 100"
+        },
+        {
+          "id": "part_b_q2",
+          "type": "expected_output",
+          "question": "עקוב אחר הערכים של x, y, z והדפסתם בשורות נפרדות. טעות בערך של משתנה אחד = הורדת 3 נקודות. שגיאה בשני משתנים או יותר = 0.",
+          "expected_output": "20\n10\n15"
+        },
+        {
+          "id": "part_b_q3",
+          "type": "expected_output",
+          "question": "מה הפלט של שלוש פקודות print(type(...)) עבור int, float, bool? רישום הטיפוסים בלבד ללא פורמט class = הורדת 2 נקודות. טעות בזיהוי טיפוס אחד = הורדת 3 נקודות.",
+          "expected_output": "<class 'int'>\n<class 'float'>\n<class 'bool'>"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג': תיקון שגיאות (Debugging)",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "part_c_q1",
+          "type": "debugging",
+          "question": "זהה את השגיאה בקוד ותקן אותו כך שיפעל. השגיאה: Success מיוחס כמשתנה לא מוגדר (NameError) במקום מחרוזת. זיהוי ללא קוד מתוקן תקין = חצי ניקוד. אי-זיהוי = 0.",
+          "code": "status = Success\nprint(status)",
+          "corrected_code": "status = \"Success\"\nprint(status)"
+        },
+        {
+          "id": "part_c_q2",
+          "type": "debugging",
+          "question": "זהה את השגיאה בקוד ותקן אותו כך שיפעל. השגיאה: ניסיון להציב ערך לתוך ליטרל מספרי (SyntaxError). זיהוי ללא קוד מתוקן תקין = חצי ניקוד. אי-זיהוי = 0.",
+          "code": "100 = grade\nprint(grade)",
+          "corrected_code": "grade = 100\nprint(grade)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד': כתיבת קוד מלא (משתנים והדפסה)",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "part_d",
+          "type": "code_writing",
+          "question": "כתוב תוכנית המגדירה player_tag (str), level (int), is_online (bool) ומדפיסה אותם בפקודת print אחת עם טקסט מילולי. קוד תקין שקול לוגית מתקבל. חוסר במשתנה או טיפוס שגוי = הורדת 5. יותר מ-print אחת = הורדת 5. בלי טקסט מילולי = הורדת 5. שגיאת תחביר = הורדת 10.",
+          "requirements": [
+            "player_tag (str) e.g. \"Player1\"",
+            "level (int) e.g. 5",
+            "is_online (bool) e.g. True",
+            "Single print statement combining literal text with variables, e.g. print(\"Player:\", player_tag, \"Level:\", level, \"Online:\", is_online)"
+          ]
+        }
+      ]
+    }
+  ]
+}

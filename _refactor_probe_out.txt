@@ -1,0 +1,378 @@
+===== src/llm_evaluator.py top-level (total 2118) =====
+1-20: Expr
+22-22: import: annotations
+24-24: import: concurrent.futures
+25-25: import: json
+26-26: import: logging
+27-27: import: re
+28-28: import: threading
+29-29: import: Sequence
+30-30: import: dataclass
+31-31: import: Any
+33-39: import: APIConnectionError, APIError, APIStatusError, APITimeoutError, OpenAI
+40-40: import: ValidationError
+41-45: import: retry, retry_if_exception, stop_after_attempt
+47-47: import: settings
+48-48: import: checks_for_assignment, scan_submission
+49-49: import: apply_late_penalty
+50-50: import: DailyQuotaExhausted
+51-56: import: AssignmentConfig, AssignmentSpec, GradingResult, SpecSection
+58-58: logger
+64-64: Rubric
+69-69: Expr
+70-70: Expr
+71-71: Expr
+76-76: TEMPERATURE
+84-84: MAX_TOKENS
+100-100: MAX_DOC_CHARS
+104-104: _TRIM_SEARCH_CHARS
+105-108: _TRIM_MARKER
+111-150: trim_document_text
+153-159: _snap_back
+162-168: _snap_forward
+174-174: EVAL_PAUSE_SECONDS
+180-180: REASONING_EFFORT
+192-192: _RETRYABLE_STATUS_CODES
+201-201: _MAX_ATTEMPTS
+202-202: _BACKOFF_MULTIPLIER
+203-203: _MAX_BACKOFF_SECONDS
+204-204: _MAX_RETRY_AFTER_SECONDS
+217-224: _max_workers
+236-236: _RATE_LIMIT_RETRIES
+237-237: _RATE_LIMIT_BACKOFF_BASE
+243-243: _RATE_LIMIT_WAIT_CAP
+247-247: _REQUEST_TIMEOUT_SECONDS
+252-264: _STRICT_SCHEMA_KEYWORDS
+267-267: _SCHEMA_NAME
+269-303: SYSTEM_PROMPT
+309-309: _ROUTER
+310-310: _ROUTER_READY
+311-311: _PACER
+314-331: _router
+334-343: _pacer
+346-359: paced_pause
+366-366: _AUDIT_SIDECAR
+369-374: last_audit_for
+377-405: _run_audit
+409-410: LLMEvaluationError
+413-421: LLMJSONParsingError
+424-439: LLMAPIError
+442-442: _client
+445-474: _get_client
+477-510: _to_strict_json_schema
+513-524: _build_response_format
+529-529: _RESPONSE_FORMAT
+534-534: _JSON_OBJECT_FORMAT
+539-552: _JSON_ONLY_INSTRUCTION
+555-559: _CONCISE_REMINDER
+562-562: _ERROR_SNIPPET_CHARS
+568-599: _GRADING_KEY_ALIASES
+604-619: _DEDUCTION_KEY_ALIASES
+621-641: _TASK_KEY_ALIASES
+644-676: _STATUS_ALIASES
+679-687: _WRAPPER_KEYS
+692-692: _EXEMPT_HEADER
+695-722: _exempt_tasks_block
+725-751: _code_scan_block
+753-804: _spec_scan_block
+806-810: rubric_title
+813-846: rubric_tasks_json
+849-918: _build_prompt
+921-934: _extract_content
+948-948: _FENCE_LINE_RE
+951-951: _TRAILING_COMMA_RE
+953-953: _CLOSE_TO_OPEN
+956-965: _strip_code_fences
+968-1003: _json_span
+1006-1034: _close_truncated
+1037-1053: repair_json
+1056-1067: _repair_candidates
+1070-1111: _parse_payload
+1114-1116: _one_line
+1119-1136: _audit_deductions
+1139-1141: _parse_result
+1153-1155: _norm_key
+1158-1163: _canonical_key
+1166-1169: _rename_keys
+1172-1183: _coerce_score
+1186-1200: _coerce_points
+1203-1209: _coerce_status
+1212-1228: _coerce_task
+1231-1265: _coerce_deduction
+1268-1280: _coerce_deductions
+1283-1326: _coerce_payload
+1329-1342: _is_retryable_error
+1345-1354: _retry_after_seconds
+1357-1370: _wait_before_retry
+1373-1382: _log_retry
+1392-1447: _create_completion
+1454-1466: _STAGES
+1471-1471: _first_working_stage
+1474-1483: _error_detail
+1486-1493: _is_json_generation_error
+1496-1505: _is_degradable
+1508-1526: _rate_limit_wait
+1529-1579: _call_completion
+1582-1667: _call_completion_once
+1670-1684: _serve_from_router
+1687-1794: _serve_decision
+1797-1805: _client_for
+1808-1846: _note_rate_limited
+1849-1945: evaluate_student_submission
+1949-1954: StudentGradeRequest
+1958-1964: StudentGradeOutcome
+1967-1995: _grade_one_request
+1998-2118: grade_students_batch
+
+----- app seams: usage sites in app.py -----
+st: [35, 122, 158, 159, 162, 318, 330, 331, 336, 344, 345, 346, 360, 370, 375, 382, 397, 406, 415, 416, 425, 432, 439, 454, 464, 474, 493, 496, 502, 504, 516, 524, 533, 542, 548, 569, 578, 581, 689, 694, 715, 730, 747, 748, 754, 759, 769, 772, 777, 779, 781, 921, 922, 928, 943, 951, 953, 955, 958, 960, 982, 991, 996, 999, 1004, 1012, 1013, 1019, 1021, 1023, 1027, 1031, 1033, 1038, 1040, 1048, 1049, 1064, 1070, 1071, 1079, 1084, 1101, 1103, 1109, 1114, 1118, 1131, 1132, 1192, 1193, 1205, 1230, 1235, 1238, 1246, 1249, 1256, 1264, 1266, 1272, 1276, 1278, 1286, 1306, 1307, 1309, 1319, 1330, 1341, 1382, 1386, 1389, 1391, 1393, 1425, 1435, 1436, 1439, 1440, 1448, 1458, 1459, 1464, 1511, 1545, 1583, 1597, 1598, 1679, 1680, 1683, 1688, 1691, 1696, 1698, 1701, 1711, 1740, 1770, 1772, 1800, 1824, 1832, 1838, 1895, 1898, 1905, 1946, 1953, 1990, 1996, 2000, 2013, 2015, 2017, 2024, 2030, 2031, 2036, 2039, 2050, 2061, 2065, 2068, 2078, 2080, 2085, 2086, 2105, 2107, 2108, 2125, 2130, 2132, 2140, 2142, 2144, 2154, 2160, 2166, 2167, 2169, 2174, 2179, 2191, 2202, 2221, 2235, 2242, 2247, 2251, 2254, 2255, 2266, 2267, 2269, 2274, 2284, 2288, 2297, 2301, 2306, 2318, 2319, 2320, 2327, 2341, 2342, 2343, 2344, 2370, 2378]
+has_report_for_today: [60, 869, 897, 936, 940]
+_CATCHUP_STATE: [793, 892, 956, 958]
+_schtasks_catchup: [796, 871]
+_detached_catchup: [822, 876]
+trigger_daily_check_catchup: [854, 900, 952]
+_ensure_today_report_catchup: [885, 2316]
+list_daily_reports: [61, 934]
+load_daily_report: [62, 994]
+resolve_mapped_config: [89, 483, 1863]
+EVAL_PAUSE_SECONDS: [69]
+run_dry_run_evaluation: [54, 1932]
+_load_pending_dashboard: [357, 1825, 2165, 2197, 2338]
+_delete_report_artifacts: [81, 1690]
+_load_courses: [349, 424, 426, 1702, 1729, 1745, 2330]
+_load_course_work: [353, 448, 1741, 1757, 2334]
+grade_students_batch: [73, 613, 652]
+evaluate_student_submission: [72]
+paced_pause: [75, 228, 615, 653, 1929]
+load_rubric: [86, 522, 1872]
+save_assignment_mapping: [90, 560]
+get_all_config_files: [312, 472, 2034, 2291]
+
+----- eval seams: usage sites in llm_evaluator.py -----
+_ROUTER: [309, 316, 318, 325, 328, 329, 330, 331]
+_ROUTER_READY: [310, 316, 317, 319]
+_client: [442, 453, 454, 468, 474]
+_get_client: [445, 1600, 1883]
+_create_completion: [191, 1392, 1630, 1711]
+_call_completion: [189, 196, 1529, 1596, 1658, 1769, 1891]
+_parse_result: [1139, 1894]
+_first_working_stage: [1471, 1881, 1888, 1912]
+_pacer: [334, 353, 1841, 1931]
+EVAL_PAUSE_SECONDS: [174, 335, 342, 357]
+evaluate_student_submission: [419, 1849, 1972]
+grade_students_batch: [209, 1950, 1998]
+paced_pause: [346, 2024]
+_serve_decision: [1621, 1682, 1687]
+_note_rate_limited: [1635, 1764, 1808]
+_rate_limit_wait: [1508, 1570]
+_parse_payload: [1070, 1141, 1453, 1878]
+_serve_from_router: [1642, 1651, 1670, 1696, 1739]
+_router: [314, 1608, 1832]
+_client_for: [1627, 1709, 1797]
+
+===== every monkeypatch.setattr first-arg + attr (all tests) =====
+api_retry:
+    _wait_before_retry@test_google_resilience.py:465
+app_module:
+    EVAL_PAUSE_SECONDS@test_dashboard_dry_run.py:256
+    EVAL_PAUSE_SECONDS@test_dashboard_dry_run.py:897
+    _CATCHUP_STATE@test_daily_catchup.py:33
+    _load_pending_dashboard@test_dashboard_dry_run.py:1006
+    _load_pending_dashboard@test_dashboard_dry_run.py:1023
+    _load_pending_dashboard@test_dashboard_dry_run.py:1040
+    _load_pending_dashboard@test_dashboard_dry_run.py:1058
+    _load_pending_dashboard@test_dashboard_dry_run.py:1079
+    _load_pending_dashboard@test_dashboard_dry_run.py:1160
+    has_report_for_today@test_daily_catchup.py:31
+    resolve_mapped_config@test_dashboard_dry_run.py:255
+    resolve_mapped_config@test_dashboard_dry_run.py:896
+    run_dry_run_evaluation@test_dashboard_dry_run.py:265
+    run_dry_run_evaluation@test_dashboard_dry_run.py:906
+    run_dry_run_evaluation@test_dashboard_dry_run.py:927
+    run_dry_run_evaluation@test_dashboard_dry_run.py:944
+    st@test_daily_catchup.py:28
+    st@test_dashboard_dry_run.py:838
+    st@test_google_resilience.py:1131
+    st@test_ui_progress.py:220
+auth:
+    CREDENTIALS_FILE@test_cloud_secrets.py:93
+    TOKEN_FILE@test_cloud_secrets.py:94
+    _running_in_cloud@test_cloud_secrets.py:458
+auth.InstalledAppFlow:
+    run_local_server@test_cloud_secrets.py:463
+auth.tempfile:
+    mkstemp@test_cloud_secrets.py:483
+config_match:
+    resolve_mapped_config@test_config_match.py:108
+    resolve_mapped_config@test_config_match.py:121
+    resolve_mapped_config@test_config_match.py:129
+dashboard:
+    DRY_RUN@test_dashboard_dry_run.py:720
+    evaluate_student_submission@test_dashboard_dry_run.py:1468
+    evaluate_student_submission@test_dashboard_dry_run.py:1511
+    evaluate_student_submission@test_dashboard_dry_run.py:257
+    evaluate_student_submission@test_dashboard_dry_run.py:504
+    evaluate_student_submission@test_dashboard_dry_run.py:527
+    evaluate_student_submission@test_dashboard_dry_run.py:898
+dc:
+    build_config_resolver@test_daily_check.py:263
+    build_config_resolver@test_daily_check.py:313
+    build_read_only_service@test_daily_check.py:160
+    build_read_only_service@test_daily_check.py:174
+    build_read_only_service@test_daily_check.py:188
+    collect_pending_submissions@test_daily_check.py:312
+    resolve_mapped_config@test_daily_check.py:264
+    run_dry_run_evaluation@test_daily_check.py:314
+evaluator:
+    EVAL_PAUSE_SECONDS@test_ui_progress.py:144
+    _ROUTER@test_llm_resilience.py:579
+    _ROUTER_READY@test_llm_resilience.py:580
+    _call_completion@test_cloud_secrets.py:328
+    _call_completion@test_late_policy.py:299
+    _call_completion@test_late_policy.py:605
+    _client@test_json_repair.py:224
+    _create_completion@test_json_repair.py:240
+    _create_completion@test_json_repair.py:261
+    _create_completion@test_json_repair.py:278
+    _create_completion@test_json_repair.py:296
+    _create_completion@test_llm_resilience.py:657
+    _create_completion@test_llm_resilience.py:679
+    _create_completion@test_llm_resilience.py:704
+    _create_completion@test_llm_resilience.py:728
+    _create_completion@test_llm_resilience.py:751
+    _create_completion@test_llm_resilience.py:817
+    _create_completion@test_llm_resilience.py:839
+    _create_completion@test_llm_resilience.py:863
+    _first_working_stage@test_cloud_secrets.py:333
+    _first_working_stage@test_json_repair.py:225
+    _first_working_stage@test_late_policy.py:612
+    _get_client@test_cloud_secrets.py:327
+    _get_client@test_late_policy.py:298
+    _get_client@test_late_policy.py:604
+    _pacer@test_ui_progress.py:131
+    _pacer@test_ui_progress.py:143
+    _pacer@test_ui_progress.py:165
+    _parse_result@test_late_policy.py:295
+    evaluate_student_submission@test_llm_resilience.py:1018
+    evaluate_student_submission@test_llm_resilience.py:907
+    evaluate_student_submission@test_llm_resilience.py:930
+    evaluate_student_submission@test_llm_resilience.py:952
+    evaluate_student_submission@test_llm_resilience.py:987
+llm_router.time:
+    sleep@test_ui_progress.py:110
+    sleep@test_ui_progress.py:145
+    sleep@test_ui_progress.py:159
+    sleep@test_ui_progress.py:46
+    sleep@test_ui_progress.py:56
+    sleep@test_ui_progress.py:72
+    sleep@test_ui_progress.py:84
+    sleep@test_ui_progress.py:95
+mod:
+    _detached_catchup@test_daily_catchup.py:100
+    _detached_catchup@test_daily_catchup.py:108
+    _detached_catchup@test_daily_catchup.py:118
+    _detached_catchup@test_daily_catchup.py:127
+    _schtasks_catchup@test_daily_catchup.py:107
+    _schtasks_catchup@test_daily_catchup.py:117
+    _schtasks_catchup@test_daily_catchup.py:126
+    _schtasks_catchup@test_daily_catchup.py:140
+    _schtasks_catchup@test_daily_catchup.py:99
+    has_report_for_today@test_daily_catchup.py:162
+    has_report_for_today@test_daily_catchup.py:233
+    has_report_for_today@test_daily_catchup.py:94
+    list_daily_reports@test_daily_catchup.py:201
+    list_daily_reports@test_daily_catchup.py:216
+    list_daily_reports@test_daily_catchup.py:235
+    load_daily_report@test_daily_catchup.py:202
+    load_daily_report@test_daily_catchup.py:217
+    load_daily_report@test_daily_catchup.py:236
+    trigger_daily_check_catchup@test_daily_catchup.py:151
+    trigger_daily_check_catchup@test_daily_catchup.py:163
+    trigger_daily_check_catchup@test_daily_catchup.py:177
+    trigger_daily_check_catchup@test_daily_catchup.py:219
+stub:
+    buttons@test_dashboard_dry_run.py:1021
+    buttons@test_dashboard_dry_run.py:1038
+    buttons@test_dashboard_dry_run.py:1043
+    buttons@test_dashboard_dry_run.py:1059
+    buttons@test_dashboard_dry_run.py:1072
+    buttons@test_dashboard_dry_run.py:1157
+    buttons@test_dashboard_dry_run.py:892
+    checkbox_value@test_dashboard_dry_run.py:941
+    select_value@test_dashboard_dry_run.py:1046
+time:
+    monotonic@test_llm_resilience.py:316
+    sleep@test_llm_resilience.py:253
+    sleep@test_llm_resilience.py:271
+    sleep@test_llm_resilience.py:300
+    sleep@test_llm_resilience.py:586
+workflow_app:
+    _delete_report_artifacts@test_google_resilience.py:1200
+    _delete_report_artifacts@test_google_resilience.py:1597
+
+===== module alias imports in tests =====
+from src import config_match  # noqa: E402   <- test_config_match.py
+from src import llm_evaluator as evaluator   <- test_fallback_request_body.py
+from src import report_label   <- test_daily_check.py
+from src.auth import SCOPES   <- test_google_resilience.py
+from src.classroom_service import (   <- test_dashboard_dry_run.py
+from src.classroom_service import (  # noqa: E402   <- test_google_resilience.py
+from src.classroom_service import COURSE_WORK_LIST_FIELDS   <- test_dashboard_dry_run.py
+from src.classroom_service import ClassroomService   <- test_dashboard_dry_run.py
+from src.classroom_service import ClassroomServiceError   <- test_daily_check.py
+from src.classroom_service import ClassroomServiceError  # noqa: E402   <- test_coursework_materials.py, test_dashboard_dry_run.py
+from src.classroom_service import STUDENT_SUBMISSION_LIST_FIELDS   <- test_dashboard_dry_run.py
+from src.classroom_service import is_auth_failure   <- test_google_resilience.py
+from src.code_checks import (  # noqa: E402   <- test_code_checks.py
+from src.config_match import (   <- test_spec_rubric.py
+from src.daily_reports import DAILY_CHECK_JSON  # noqa: E402   <- test_release_report_loading.py
+from src.daily_reports import DailyReportDetail   <- test_daily_catchup.py
+from src.daily_reports import DailyReportMeta   <- test_daily_catchup.py
+from src.daily_reports import has_report_for_today, list_daily_reports, load_daily_report   <- test_daily_reports.py
+from src.dashboard import (  # noqa: E402   <- test_dashboard_dry_run.py
+from src.dashboard import CLASSROOM_WRITE_METHODS, DRY_RUN, DryRunWriteViolation   <- test_daily_check.py
+from src.dashboard import ReadOnlyClassroomService   <- test_daily_check.py
+from src.dashboard import coerce_score_column  # noqa: E402   <- test_dashboard_dry_run.py
+from src.fetch_submissions import UNSUPPORTED_ATTACHMENT_MSG  # noqa: E402   <- test_dashboard_dry_run.py
+from src.grade_audit import (   <- test_llm_resilience.py
+from src.grade_audit import FLAG_DEDUCTION_SUM_MISMATCH, audit_grading_result   <- test_report_audit.py
+from src.late_policy import (  # noqa: E402   <- test_late_policy.py
+from src.late_policy import DEFAULT_LATE_PENALTY_POINTS   <- test_cloud_secrets.py
+from src.late_policy import penalty_for   <- test_cloud_secrets.py
+from src.llm_evaluator import (   <- test_spec_rubric.py
+from src.llm_evaluator import (  # noqa: E402   <- test_json_repair.py, test_system_prompt.py
+from src.llm_router import (   <- test_llm_resilience.py
+from src.llm_router import (  # noqa: E402   <- test_ui_progress.py
+from src.llm_router import DailyQuotaExhausted   <- test_llm_resilience.py
+from src.llm_router import DailyQuotaExhausted  # noqa: E402   <- test_dashboard_dry_run.py
+from src.llm_router import is_daily_quota_error   <- test_llm_resilience.py
+from src.main import EXPORTS_DIR   <- test_release_report_loading.py
+from src.main import load_rubric, rubric_config_id   <- test_spec_rubric.py
+from src.models import (   <- test_cloud_secrets.py, test_google_resilience.py, test_llm_resilience.py, test_report_audit.py
+from src.models import (  # noqa: E402   <- test_dashboard_dry_run.py, test_late_policy.py, test_release_report_loading.py
+from src.models import AssignmentConfig, AssignmentSpec, CourseWork, TaskDefinition   <- test_spec_rubric.py
+from src.models import AssignmentConfig, DeductionItem, TaskDefinition  # noqa: E402   <- test_json_repair.py
+from src.models import AssignmentConfig, EvaluationReport, TaskDefinition   <- test_daily_check.py
+from src.models import AssignmentConfig, TaskDefinition  # noqa: E402   <- test_system_prompt.py
+from src.models import Course  # noqa: E402   <- test_coursework_materials.py
+from src.models import Course, CourseWork, StudentSubmission   <- test_daily_check.py
+from src.models import CourseWork  # noqa: E402   <- test_config_match.py
+from src.models import GradingResult   <- test_llm_resilience.py
+from src.models import GradingResult, TaskEvaluation   <- test_daily_check.py
+from src.models import TaskEvaluation   <- test_llm_resilience.py
+from src.report_audit import (   <- test_report_audit.py
+from src.report_audit import find_report_files   <- test_daily_check.py
+from src.report_audit import find_report_files  # noqa: E402   <- test_release_report_loading.py
+from src.report_label import (  # noqa: E402   <- test_report_label.py
+import app as app_module   <- test_daily_catchup.py, test_dashboard_dry_run.py, test_google_resilience.py, test_ui_progress.py
+import app as app_module  # noqa: E402   <- test_release_report_loading.py
+import src.api_retry as api_retry  # noqa: E402   <- test_google_resilience.py
+import src.auth as auth  # noqa: E402   <- test_cloud_secrets.py
+import src.classroom_service as classroom_service  # noqa: E402   <- test_late_policy.py
+import src.daily_check as dc   <- test_daily_check.py
+import src.dashboard as dashboard  # noqa: E402   <- test_dashboard_dry_run.py
+import src.list_coursework_materials as lister  # noqa: E402   <- test_coursework_materials.py
+import src.llm_evaluator as evaluator   <- test_cloud_secrets.py
+import src.llm_evaluator as evaluator  # noqa: E402   <- test_json_repair.py, test_late_policy.py, test_llm_resilience.py, test_system_prompt.py, test_ui_progress.py
+import src.llm_router as llm_router  # noqa: E402   <- test_ui_progress.py
+

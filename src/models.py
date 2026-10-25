@@ -91,6 +91,18 @@ class StudentSubmission(BaseModel):
             "as a fallback when Classroom reports no lateness verdict."
         ),
     )
+    first_submitted_at: Optional[datetime] = Field(
+        default=None,
+        description=(
+            "When the student first handed the work in. The Classroom API "
+            "has no submission-history endpoint, so this is populated from "
+            "the submission resource's creation time - the closest available "
+            "proxy for the original hand-in. Unlike ``submitted_at`` (the "
+            "last update), it is not moved by a resubmission, so the late "
+            "policy can excuse a late resubmission of work first handed in "
+            "on time."
+        ),
+    )
 
 
 class TaskDefinition(BaseModel):
@@ -118,6 +130,78 @@ class AssignmentConfig(BaseModel):
     title: str = Field(description="Assignment title as shown to students.")
     tasks: list[TaskDefinition] = Field(
         description="Tasks the submission is graded against.",
+    )
+
+
+class SpecQuestion(BaseModel):
+    """One question inside a spec section (multiple choice, expected output, ...).
+
+    Only the fields relevant to the question's ``type`` are populated; all other
+    fields are optional so that a single model can express every supported
+    question shape without forcing unused keys.
+    """
+
+    id: str = Field(description="Unique question identifier within the section.")
+    type: str = Field(
+        description=(
+            "Question kind: ``multiple_choice``, ``expected_output``, "
+            "``debugging``, or ``code_writing``."
+        )
+    )
+    question: str = Field(description="The question text shown to the student.")
+    correct_answer: Optional[str] = Field(
+        default=None,
+        description="Expected/selected answer for a multiple-choice question.",
+    )
+    expected_output: Optional[str] = Field(
+        default=None,
+        description=(
+            "Exact stdout the student's program must produce (expected output)."
+        ),
+    )
+    code: Optional[str] = Field(
+        default=None,
+        description="Broken program snippet to be corrected (debugging).",
+    )
+    corrected_code: Optional[str] = Field(
+        default=None,
+        description="Fixed program (debugging).",
+    )
+    requirements: Optional[list[str]] = Field(
+        default=None,
+        description=(
+            "What a complete solution must include (code writing)."
+        ),
+    )
+
+
+class SpecSection(BaseModel):
+    """One grouped cluster of questions within an assignment spec."""
+
+    section_name: str = Field(description="Display name of the section.")
+    weight: int = Field(
+        ge=0,
+        description="Weight of this section toward the total score.",
+    )
+    questions: list[SpecQuestion] = Field(
+        description="Questions belonging to this section.",
+    )
+
+
+class AssignmentSpec(BaseModel):
+    """Full evaluation spec for one assignment (multi-question rubric)."""
+
+    assignment_title: str = Field(
+        description="Title of the assignment as shown to students."
+    )
+    topic: str = Field(description="Overall learning topic of the assignment.")
+    total_points: int = Field(
+        ge=0,
+        le=100,
+        description="Maximum score achievable on the assignment.",
+    )
+    sections: list[SpecSection] = Field(
+        description="Sections and their questions.",
     )
 
 
@@ -212,6 +296,15 @@ class ReportEntry(BaseModel):
         description="Google Doc that receives the feedback comment.",
     )
     result: GradingResult = Field(description="Full evaluation outcome.")
+    audit: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Deterministic audit verdict for this student (src.grade_audit "
+            "AuditVerdict.to_dict()): ok/autofixed/flags/findings. Persisted "
+            "so the Release tab can still warn about a grade that needs a "
+            "human look days after grading ran. Absent in older reports."
+        ),
+    )
 
 
 class EvaluationReport(BaseModel):
@@ -232,6 +325,15 @@ class EvaluationReport(BaseModel):
         description=(
             "File name of the Mashov CSV exported next to this report, so "
             "the release flow can clean both files up together."
+        ),
+    )
+    source: Optional[str] = Field(
+        default=None,
+        description=(
+            "Where this report was produced, used only to label it in the "
+            "Release dropdown: 'daily_check' (the opt-in --grade background "
+            "scan), 'dashboard' (the read-only dry-run), or None for a manual "
+            "Evaluate-tab run. Purely cosmetic - absent in older reports."
         ),
     )
     entries: list[ReportEntry] = Field(

@@ -13,9 +13,12 @@ __pycache__/
 # Google OAuth artifacts
 credentials.json
 token.json
+credentials.backup-623.json
+token.backup-623.json
 
 # Generated Streamlit Cloud secrets (contains live credentials)
 streamlit_secrets.toml
+.streamlit/secrets.toml
 
 # Logs
 *.log

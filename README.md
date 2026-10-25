@@ -197,11 +197,25 @@ real `0` - so both the quoted (`"0"`) and bare (`0`) forms are accepted in
 `secrets.toml`, and reading only strings used to turn a bare `0` back into a
 10-point charge.
 
-Lateness is resolved from the strongest available signal: Classroom's own
-`lateState` verdict, then its `late` flag, then - only if neither is reported -
-a comparison of the submission timestamp against the assignment's exact
-`dueDate` + `dueTime`. If none of them is available the work is graded as on
-time and a warning is logged: a missing signal must never invent a penalty.
+Lateness is resolved from the strongest available signal, in this order:
+
+1. The submission's original hand-in time - from submission history, or the
+   submission resource's creation time that Classroom reports with the
+   submission. A resubmission moves the submission's last-update timestamp but
+   not this instant, so work first handed in on time stays on time no matter
+   how late the resubmission is. If the original submission was on time, no
+   late penalty is charged for the resubmission.
+2. Classroom's own `lateState` verdict, then its `late` flag.
+3. Only if neither is reported - a comparison of the submission timestamp
+   against the assignment's exact `dueDate` + `dueTime`. Because that timestamp
+   is the last update (not the first hand-in), a late resubmission can make
+   on-time work look late: when history is unavailable and this is the only
+   evidence of lateness, the previous grading comment on the student's
+   document is checked - if it never opened with the late-penalty notice, the
+   original hand-in is treated as on time and no penalty is charged.
+
+If none of them is available the work is graded as on time and a warning is
+logged: a missing signal must never invent a penalty.
 (In practice Classroom often reports no verdict at all unless a late-submission
 policy is configured, which is why the timestamp fallback exists and logs when
 it decides.)
@@ -304,6 +318,80 @@ predates it, the next run opens the browser once for re-authorization
 - `https://www.googleapis.com/auth/classroom.rosters.readonly`
 - `https://www.googleapis.com/auth/documents.readonly` (read the submission)
 - `https://www.googleapis.com/auth/drive` (create/update/delete feedback comments; not covered by `drive.readonly`)
+
+## Running the dashboard
+
+Three scripts manage the Streamlit dashboard. They are scoped to this project's
+folder, so other Streamlit apps on the machine are never affected.
+
+| Script | What it does |
+| --- | --- |
+| `Run-Dashboard.ps1` | Stop any stale instance, then start the dashboard on port 8501 and wait for a health check. |
+| `Stop-Streamlit.ps1` | Stop this project's dashboard processes and free port 8501. `-List` for a dry run. |
+| `Register-DashboardService.ps1` | Run the dashboard **silently in the background**, starting automatically at logon. |
+| `Unregister-DashboardService.ps1` | Stop and remove that background service. |
+
+`Launch-DashboardService.vbs` is the windowless launcher the scheduled task runs;
+you never need to call it yourself.
+
+### One-off launch (manual)
+
+```powershell
+.\Run-Dashboard.ps1                 # starts on http://localhost:8501
+.\Run-Dashboard.ps1 -Port 8502      # different port
+.\Stop-Streamlit.ps1 -List          # see what is running, change nothing
+```
+
+`.streamlit/config.toml` pins the port to 8501 so a plain `streamlit run app.py`
+lands on the same URL, and binds to `localhost` only (the dashboard holds Google
+credentials and must not be reachable from the network).
+
+### Always-on background service (recommended)
+
+```powershell
+.\Register-DashboardService.ps1              # register; starts at your next logon
+.\Register-DashboardService.ps1 -StartNow    # also start it immediately
+```
+
+The task `ClassroomAutoGrader-Dashboard`:
+
+- launches **completely hidden** — the action is `wscript.exe` running
+  `Launch-DashboardService.vbs`, which starts PowerShell with `SW_HIDE`, and
+  `Run-Dashboard.ps1 -Service` starts Streamlit hidden too. **No console, no
+  terminal and no taskbar entry is ever created.** (`powershell.exe
+  -WindowStyle Hidden` alone is not enough here: the console host can realise a
+  visible window first, which is how stray windows ended up on the desktop.)
+- triggers **30 s after each logon**, with `StartWhenAvailable` so a missed
+  trigger catches up,
+- has **no execution time limit** (`PT0S`), so a server that has been up for
+  weeks is never killed by Task Scheduler's default 72 h limit,
+- **restarts the dashboard itself** if the Streamlit process dies — recovery
+  takes a few seconds and does not depend on Task Scheduler's restart policy
+  (which is configured as 999 × 1 min as a backstop, but was found not to fire
+  reliably on its own),
+- ignores overlapping instances (`IgnoreNew`), runs on battery and is never
+  stopped for being idle,
+- runs in **your** interactive session, which is what makes `localhost:8501`
+  reachable from the browser and lets the dashboard use your Google sign-in.
+
+Because it runs as you, the dashboard is only available while you are logged on
+— it is not a SYSTEM service, and that is intentional.
+
+```powershell
+Get-ScheduledTask     -TaskName "ClassroomAutoGrader-Dashboard"   # status
+Stop-ScheduledTask    -TaskName "ClassroomAutoGrader-Dashboard"   # pause it
+Start-ScheduledTask   -TaskName "ClassroomAutoGrader-Dashboard"   # start/resume it
+Get-Content logs\dashboard-service.log -Tail 40                   # service log
+.\Unregister-DashboardService.ps1                                # remove it
+```
+
+If a restart is ever needed after editing `app.py`, stop and start the task (or
+just run `.\Stop-Streamlit.ps1` — the supervisor notices and relaunches the
+current code within seconds).
+
+No Administrator rights are needed for either script. The service clears any
+stale instance before it starts (unless you pass `-KeepOld`), so
+`http://localhost:8501` is always served by the current code.
 
 ## Roadmap
 

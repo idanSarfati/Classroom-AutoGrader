@@ -1,0 +1,26 @@
+﻿........................................................................ [ 13%]
+........................................................................ [ 27%]
+........................................................................ [ 40%]
+........................................................................ [ 54%]
+........................................................................ [ 68%]
+........................................................................ [ 81%]
+.........................................................F.............. [ 95%]
+.........................                                                [100%]
+================================== FAILURES ===================================
+___________________ test_resolver_maps_hebrew_title_to_spec ___________________
+
+    def test_resolver_maps_hebrew_title_to_spec() -> None:
+        resolve = build_config_resolver()
+        found = resolve(CourseWork(id="cw_spec_test", title="·°Γσ∞ ΘτΘπσ· 1-2"))
+        assert found is not None
+        path, rubric = found
+>       assert path.name == "units_1_2_spec.json"
+E       AssertionError: assert 'exam_practice_units_1_2.json' == 'units_1_2_spec.json'
+E         
+E         - units_1_2_spec.json
+E         + exam_practice_units_1_2.json
+
+tests\test_spec_rubric.py:75: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_spec_rubric.py::test_resolver_maps_hebrew_title_to_spec - A...
+1 failed, 528 passed in 37.34s

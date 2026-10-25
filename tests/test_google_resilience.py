@@ -1053,6 +1053,42 @@ def test_unknown_scopes_are_treated_as_complete():
     service.credentials = SimpleNamespace(scopes=None)
 
 
+def test_revoked_grant_is_detected_by_message():
+    """``invalid_grant`` refresh failures are classified as auth failures."""
+    from src.classroom_service import is_auth_failure
+
+    err = ClassroomServiceError(
+        "Failed to list courses: RefreshError: "
+        "('invalid_grant: Token has been expired or revoked.', "
+        "{'error': 'invalid_grant'})"
+    )
+    assert is_auth_failure(err)
+
+
+def test_revoked_grant_carries_recovery_hint():
+    """``_execute`` appends the re-authorize hint to auth failures."""
+    from google.auth.exceptions import RefreshError
+
+    def _boom():
+        raise RefreshError(
+            "('invalid_grant: Token has been expired or revoked.', "
+            "{'error': 'invalid_grant'})"
+        )
+
+    with pytest.raises(ClassroomServiceError, match="token.json"):
+        ClassroomService._execute(SimpleNamespace(execute=_boom), "list courses")
+
+
+def test_transient_error_has_no_auth_hint():
+    """Ordinary API failures must not mention re-authorization."""
+    with pytest.raises(ClassroomServiceError) as excinfo:
+        ClassroomService._execute(
+            SimpleNamespace(execute=lambda: (_ for _ in ()).throw(make_http_error(500))),
+            "list courses",
+        )
+    assert "token.json" not in str(excinfo.value)
+
+
 # --------------------------------------------------------------------------- #
 # 6. The release workflow: the comment survives a refused grade
 # --------------------------------------------------------------------------- #
@@ -1450,5 +1486,144 @@ def test_the_whole_comment_lifecycle_runs_clean():
             # is not, and it is a whole word - not the prefix of ``createdTime``.
             selector = str(call.get("fields", ""))
             assert not re.search(r"\bcreated\b", selector), (op, selector)
+
+
+# --------------------------------------------------------------------------- #
+# 8. Grade/return 403s: Classroom's same-project ownership rule
+# --------------------------------------------------------------------------- #
+
+
+def _project_denied_error() -> HttpError:
+    """The exact 403 shape Google sends for foreign coursework."""
+    resp = httplib2.Response({"status": 403})
+    return HttpError(
+        resp=resp,
+        content=(
+            b'{"error": {"message": "@ProjectPermissionDenied The Developer '
+            b'Console project is not permitted to make this request."}}'
+        ),
+        uri="https://classroom.googleapis.com/test",
+    )
+
+
+def test_project_permission_denied_hint_is_actionable():
+    """The raw 403 gains the ownership explanation and the fix."""
+    err = ClassroomService._api_error(
+        "update grade for submission 's1'", _project_denied_error()
+    )
+    text = str(err)
+    assert "HTTP 403" in text
+    assert "@ProjectPermissionDenied" in text
+    assert "was not created by this Developer Console project" in text
+    assert "migrate_class_assignments" in text
+    assert "associatedWithDeveloper" in text
+
+
+def test_unrelated_403_gets_no_ownership_hint():
+    """A Drive 403 (e.g. comments.create) must not blame coursework."""
+    resp = httplib2.Response({"status": 403})
+    exc = HttpError(
+        resp=resp,
+        content=b'{"error": {"message": "The user does not have access."}}',
+        uri="https://www.googleapis.com/test",
+    )
+    text = str(ClassroomService._api_error("create comment", exc))
+    assert "was not created by this Developer Console project" not in text
+
+
+class _FakeCourseWork:
+    """Minimal ``courses().courseWork()`` double for ownership checks."""
+
+    def __init__(self, item=None, error=None):
+        self._item = item or {}
+        self._error = error
+        self.seen: list = []
+
+    def get(self, **kwargs):
+        self.seen.append(kwargs)
+
+        class _Req:
+            def __init__(self, outer):
+                self._outer = outer
+
+            def execute(self):
+                if self._outer._error is not None:
+                    raise self._outer._error
+                return dict(self._outer._item)
+
+        return _Req(self)
+
+
+def _ownership_service(item=None, error=None):
+    service = ClassroomService.__new__(ClassroomService)
+    fake = _FakeCourseWork(item=item, error=error)
+    service.classroom = SimpleNamespace(
+        courses=lambda: SimpleNamespace(
+            courseWork=lambda: SimpleNamespace(get=fake.get)
+        )
+    )
+    return service, fake
+
+
+def test_writable_when_associated_with_developer():
+    service, fake = _ownership_service({"associatedWithDeveloper": True})
+    assert service.is_coursework_writable("c1", "cw1") is True
+    assert fake.seen[0]["courseId"] == "c1"
+    assert fake.seen[0]["id"] == "cw1"
+    service.assert_coursework_writable("c1", "cw1")  # must not raise
+
+
+def test_not_writable_when_created_elsewhere():
+    service, _ = _ownership_service({"associatedWithDeveloper": False})
+    assert service.is_coursework_writable("c1", "cw1") is False
+    with pytest.raises(ClassroomServiceError) as excinfo:
+        service.assert_coursework_writable("c1", "cw1")
+    assert "was not created by this Developer Console project" in str(
+        excinfo.value
+    )
+
+
+def test_ownership_check_failure_never_blocks_release():
+    """A failed get degrades to writable - unknown is not forbidden."""
+    service, _ = _ownership_service(error=ClassroomServiceError("boom"))
+    assert service.is_coursework_writable("c1", "cw1") is True
+    service.assert_coursework_writable("c1", "cw1")  # must not raise
+
+
+def test_release_prefers_preflight_over_per_student_403(
+    workflow_app, tmp_path, monkeypatch
+):
+    """Foreign coursework: grades/returns skipped, comment still delivered."""
+    monkeypatch.setattr(
+        workflow_app, "_delete_report_artifacts", lambda *a, **kwargs: []
+    )
+
+    class _PreflightService(_GradeRefusedService):
+        def __init__(self):
+            super().__init__()
+            self.grade_calls = 0
+
+        def is_coursework_writable(self, *a, **k):
+            return False
+
+        def update_submission_grade(self, *a, **k):
+            self.grade_calls += 1
+            raise AssertionError("grade must be skipped after pre-flight")
+
+    service = _PreflightService()
+    workflow_app._run_release_action(
+        service,
+        tmp_path / "report.json",
+        _one_student_report(),
+        {
+            "publish_grades": True,
+            "post_comment": True,
+            "return_submissions": True,
+        },
+    )
+
+    assert service.grade_calls == 0, "no doomed patch attempted"
+    assert service.comments, "feedback comment still delivered"
+    assert service.returned == [], "never return a submission left ungraded"
 
 

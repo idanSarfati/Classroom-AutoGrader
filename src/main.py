@@ -42,7 +42,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 # Support running as a plain script (python src/main.py).
 if __package__ in (None, ""):
@@ -66,7 +66,9 @@ from src.llm_evaluator import (  # noqa: E402
     EVAL_PAUSE_SECONDS,
     LLMEvaluationError,
     evaluate_student_submission,
-)
+    last_audit_for,
+    paced_pause,
+)  # noqa: E402
 from src.models import (  # noqa: E402
     AssignmentConfig,
     Course,
@@ -75,6 +77,9 @@ from src.models import (  # noqa: E402
     GradingResult,
     ReportEntry,
     StudentSubmission,
+    AssignmentSpec,
+    SpecSection,
+    SpecQuestion,
 )
 
 logger = logging.getLogger(__name__)
@@ -97,11 +102,100 @@ class GradingRow:
     submission: StudentSubmission
     result: Optional[GradingResult] = None
     error: Optional[str] = None
+    # Deterministic audit verdict from src.grade_audit (populated by callers
+    # via last_audit_for right after evaluation; None when audit is off).
+    audit: Optional[Any] = None
+
+
+def audit_summary(row: "GradingRow") -> str:
+    """One-cell audit status for tables: clean / auto-fixed / flag list.
+
+    Delegates to :meth:`AuditVerdict.badge` so the CLI, the dry-run tables and
+    the Streamlit app render the exact same wording for the same verdict.
+    """
+    verdict = getattr(row, "audit", None)
+    if verdict is None:
+        return "-"
+    try:
+        return verdict.badge()
+    except Exception:
+        return "?"
+
+
+def _audit_note(row: "GradingRow") -> str:
+    """Short trailing note for the CLI per-student line (empty when clean)."""
+    verdict = getattr(row, "audit", None)
+    if verdict is None:
+        return ""
+    try:
+        if getattr(verdict, "ok", False) and not getattr(verdict, "autofixed", False):
+            return ""
+        return f"  [{verdict.summary()}]"
+    except Exception:
+        return ""
+
+
+def _audit_payload(row: "GradingRow") -> Optional[dict]:
+    """JSON-safe audit verdict for the report file (None when not audited)."""
+    verdict = getattr(row, "audit", None)
+    if verdict is None:
+        return None
+    try:
+        return verdict.to_dict()
+    except Exception:
+        return None
+
+
+def _fallback_notice() -> Optional[str]:
+    """User-facing warning when the batch had to leave Groq (None if it didn't).
+
+    This is the "tell me what changed" half of the daily-quota handling: the
+    router silently moved traffic to the fallback provider, so without this the
+    teacher would have no idea why a different model produced the grades.
+    """
+    try:
+        from src.llm_evaluator import _router
+
+        router = _router()
+    except Exception:
+        return None
+    if router is None:
+        return None
+    try:
+        return router.fallback_notice()
+    except Exception:
+        return None
 
 
 def load_assignment_config(path: Path) -> AssignmentConfig:
     """Load and validate a teacher assignment config JSON."""
     data = json.loads(path.read_text(encoding="utf-8"))
+    return AssignmentConfig.model_validate(data)
+
+
+def load_assignment_spec(path: Path) -> AssignmentSpec:
+    """Load and validate an evaluation-spec JSON (multi-question rubric).
+
+    This is the schema used by the richer rubric files in ``configs/`` (for
+    example ``units_1_2_spec.json``), where questions are grouped into sections
+    and each question carries a ``type`` plus type-specific fields.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return AssignmentSpec.model_validate(data)
+
+
+def load_rubric(path: Path) -> AssignmentConfig | AssignmentSpec:
+    """Load and validate a rubric file of either schema.
+
+    Legacy rubrics (``assignments/lesson_*.json``) validate as
+    :class:`AssignmentConfig`; the richer spec files (``configs/*_spec.json``,
+    identified by a top-level ``sections`` key) validate as
+    :class:`AssignmentSpec`. One entry point so the CLI, the Dashboard and the
+    daily check all resolve the same file to the same model.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "sections" in data:
+        return AssignmentSpec.model_validate(data)
     return AssignmentConfig.model_validate(data)
 
 
@@ -249,22 +343,64 @@ def deductions_summary(result: Optional[GradingResult]) -> str:
 
 
 def _print_summary(rows: list[GradingRow]) -> None:
-    """Print Student Name | Score | Tasks Status summary."""
+    """Print Student Name | Score | Audit | Tasks Status summary."""
     print()
-    print(f"{'Student Name':<24} | {'Score':<5} | Tasks Status summary")
-    print("-" * 78)
+    print(f"{'Student Name':<24} | {'Score':<5} | {'Audit':<28} | Tasks Status")
+    print("-" * 104)
     for row in rows:
         name = bidi_print(row.submission.student_name)
         if row.result is not None:
-            print(f"{name:<24} | {row.result.score:<5} | {_tasks_summary(row.result)}")
+            print(
+                f"{name:<24} | {row.result.score:<5} | {audit_summary(row):<28} | "
+                f"{_tasks_summary(row.result)}"
+            )
         else:
-            print(f"{name:<24} | {'-':<5} | ERROR: {row.error}")
+            print(f"{name:<24} | {'-':<5} | {'-':<28} | ERROR: {row.error}")
+    _print_audit_rollup(rows)
     for row in rows:
         if row.result is not None and row.result.deduction_breakdown:
             print()
             print(f"{bidi_print(row.submission.student_name)}:")
             for item in row.result.deduction_breakdown:
                 print(f"  -{item.points_deducted}  {item.task_name}: {item.reason}")
+
+
+def _print_audit_rollup(rows: list[GradingRow]) -> None:
+    """Print the audit totals, then every finding that still needs a human.
+
+    The audit's whole purpose is cutting the teacher's review load, so the
+    output leads with the count and only spells out what a person must look at.
+    """
+    verdicts = [getattr(row, "audit", None) for row in rows if row.result is not None]
+    if not any(verdicts):
+        return
+    try:
+        from src.grade_audit import summarize_verdicts
+
+        stats = summarize_verdicts(verdicts)
+    except Exception:
+        return
+    if not stats.get("total"):
+        return
+    print()
+    print(
+        f"Audit: {stats['clean']} clean, {stats['autofixed']} auto-fixed, "
+        f"{stats['needs_review']} need review (of {stats['total']} graded)."
+    )
+    if stats.get("corrected_points"):
+        print(f"Audit corrected {stats['corrected_points']} point(s) of score math.")
+    flagged = [
+        (row, row.audit)
+        for row in rows
+        if row.result is not None
+        and getattr(row.audit, "needs_review", False)
+    ]
+    if flagged:
+        print("\nGrades needing your review:")
+        for row, verdict in flagged:
+            print(f"  {bidi_print(row.submission.student_name)}: {verdict.summary()}")
+            for finding in verdict.findings:
+                print(f"    - [{finding.flag}] {finding.message}")
 
 
 def write_mashov_csv(
@@ -530,44 +666,58 @@ def _run_evaluation_flow(service: ClassroomService) -> int:
             return 0
         assignment = work_items[work_index]
 
-        # (c) assignment config JSON - remembered per course work
-        config_path = resolve_mapped_config(assignment.id)
-        config: Optional[AssignmentConfig] = None
-        if config_path is not None:
+        # (c) rubric: remembered mapping -> fuzzy title match -> manual prompt.
+        # ``config_match`` imports this module at import time, so it is loaded
+        # lazily here to keep ``python -m src.main`` free of import cycles.
+        from src.config_match import (  # noqa: E402 - deliberate lazy import
+            build_config_resolver,
+            list_config_files,
+            load_rubric as load_any_rubric,
+        )
+
+        resolved = build_config_resolver()(assignment)
+        config: Optional[AssignmentConfig | AssignmentSpec] = None
+        config_path: Optional[Path] = None
+        if resolved is not None:
+            config_path, config = resolved
             print(
-                f"\nUsing mapped config for course work {assignment.id}:"
-                f" {bidi_print(config_path.name)}"
+                f"\nUsing rubric for course work {assignment.id}: "
+                f"{bidi_print(config_path.name)}"
             )
             try:
-                config = load_assignment_config(config_path)
-            except (OSError, ValueError) as exc:
+                stored = save_assignment_mapping(assignment.id, config_path)
+            except OSError as exc:
                 print(
-                    f"Mapped config '{config_path}' is unusable ({exc}); "
-                    "please select a config again.",
+                    f"Warning: could not save the assignment mapping: {exc}",
                     file=sys.stderr,
                 )
-                config_path = None
-        if config is None:
-            configs = list_assignment_configs()
+            else:
+                print(
+                    f"Remembered: course work {assignment.id} -> "
+                    f"{bidi_print(stored)} (no prompt next time)"
+                )
+        else:
+            configs = list_config_files()
             if not configs:
                 print(
-                    f"No assignment config JSON files found in '{ASSIGNMENTS_DIR}'.",
+                    "No assignment rubric JSON files found in 'assignments/', "
+                    "'config/' or 'configs/'.",
                     file=sys.stderr,
                 )
                 return 1
-            print("\nAssignment config files:")
+            print("\nAssignment rubric files:")
             for index, path in enumerate(configs, start=1):
                 print(f"  [{index}] {bidi_print(path.name)}")
-            config_index = _prompt_index(len(configs), "assignment config")
+            config_index = _prompt_index(len(configs), "assignment rubric")
             if config_index is None:
                 print("Cancelled.")
                 return 0
             config_path = configs[config_index]
             try:
-                config = load_assignment_config(config_path)
+                config = load_any_rubric(config_path)
             except (OSError, ValueError) as exc:
                 print(
-                    f"Could not load config '{config_path.name}': {exc}",
+                    f"Could not load rubric '{config_path.name}': {exc}",
                     file=sys.stderr,
                 )
                 return 1
@@ -583,10 +733,20 @@ def _run_evaluation_flow(service: ClassroomService) -> int:
                     f"Remembered: course work {assignment.id} -> "
                     f"{bidi_print(stored)} (no prompt next time)"
                 )
-        print(
-            f"Using config: {bidi_print(config.assignment_id)} - "
-            f"{bidi_print(config.title)} ({len(config.tasks)} tasks)"
-        )
+        if isinstance(config, AssignmentSpec):
+            question_count = sum(
+                len(section.questions) for section in config.sections
+            )
+            print(
+                f"Using spec: {bidi_print(config.assignment_title)} "
+                f"({len(config.sections)} sections, {question_count} questions, "
+                f"{config.total_points} points)"
+            )
+        else:
+            print(
+                f"Using config: {bidi_print(config.assignment_id)} - "
+                f"{bidi_print(config.title)} ({len(config.tasks)} tasks)"
+            )
 
         # (d) TURNED_IN submissions
         submissions = service.get_submissions(course.id, assignment.id)
@@ -629,8 +789,22 @@ def _run_evaluation_flow(service: ClassroomService) -> int:
             try:
                 # Resolve the penalty once: is_late() logs when it has to fall
                 # back to timestamps, and re-asking would double that noise.
+                # The original hand-in time (submission history) outranks the
+                # last-update timestamp, so a late resubmission of work first
+                # handed in on time is not penalised. When history is
+                # unavailable, the previous grading comment on the document is
+                # consulted before trusting a late timestamp.
+                prior_comment = (
+                    service.latest_feedback_comment(submission.doc_id)
+                    if submission.doc_id
+                    else None
+                )
                 late_penalty = penalty_for(
-                    submission, assignment, settings.late_penalty_points
+                    submission,
+                    assignment,
+                    settings.late_penalty_points,
+                    first_submitted_at=submission.first_submitted_at,
+                    prior_comment=prior_comment,
                 )
                 result = evaluate_student_submission(
                     submission.student_name,
@@ -638,21 +812,48 @@ def _run_evaluation_flow(service: ClassroomService) -> int:
                     config,
                     late_penalty_points=late_penalty,
                 )
-                rows.append(GradingRow(submission, result=result))
+                rows.append(
+                    GradingRow(
+                        submission,
+                        result=result,
+                        audit=last_audit_for(result),
+                    )
+                )
                 late_note = " (LATE)" if late_penalty else ""
-                print(f"{prefix}: score {result.score}{late_note}")
+                print(f"{prefix}: score {result.score}{late_note}{_audit_note(rows[-1])}")
+            except DailyQuotaExhausted as exc:
+                # Every configured provider is out of *daily* quota, so the
+                # remaining students would each fail the same way. Stop the loop
+                # and keep what was already graded: a partial report beats N
+                # identical errors, and the teacher can re-run tomorrow.
+                print()
+                print(f"Stopping early: {exc}")
+                notice = _fallback_notice()
+                if notice:
+                    print(notice)
+                break
             except LLMEvaluationError as exc:
                 rows.append(
                     GradingRow(submission, error=f"LLM evaluation failed: {exc}")
                 )
                 print(f"{prefix}: evaluation failed")
             # Pace sequential Groq completions so back-to-back long outputs do
-            # not burst the per-minute output-token (OTPM) budget.
+            # not burst the per-minute output-token (OTPM) budget. The pacer is
+            # adaptive: it stretches after each 429 and relaxes again once the
+            # provider has served a clean streak, instead of a fixed sleep that
+            # is either too slow when healthy or too fast when throttled.
             if position < len(turned_in):
-                time.sleep(EVAL_PAUSE_SECONDS)
+                paced_pause()
 
         # (f) review table
         _print_summary(rows)
+
+        # The batch may have finished "successfully" on the fallback provider
+        # after Groq ran out of daily quota. The grades are still valid, but the
+        # teacher must know which model produced them.
+        notice = _fallback_notice()
+        if notice:
+            print(f"\n{notice}")
 
         # (g) Mashov CSV (UTF-8-SIG for Excel/Hebrew)
         try:
@@ -686,12 +887,26 @@ def _print_menu() -> None:
     print("  [2] Push grades & feedback from a saved report")
 
 
+def rubric_config_id(config: AssignmentConfig | AssignmentSpec) -> str:
+    """Stable rubric id stored on saved reports (either schema).
+
+    Legacy configs carry an explicit ``assignment_id`` (``lesson_1``); spec
+    files have no such field, so their file-safe stand-in is the assignment
+    title. Used by ``EvaluationReport.assignment_config_id`` and matched back
+    by ``src.report_audit.load_config_for``.
+    """
+    if isinstance(config, AssignmentSpec):
+        return config.assignment_title
+    return config.assignment_id
+
+
 def write_evaluation_report(
     rows: list[GradingRow],
     course: Course,
     assignment: CourseWork,
-    config: AssignmentConfig,
+    config: AssignmentConfig | AssignmentSpec,
     directory: Optional[Path] = None,
+    source: Optional[str] = None,
 ) -> Path:
     """Save graded rows as a timestamped JSON report (Review & Release).
 
@@ -699,6 +914,11 @@ def write_evaluation_report(
     demand) next to the Mashov CSV of the same run; the CSV file name is
     recorded in the report so the release flow can pair - and later clean up -
     both files without guessing.
+
+    ``source`` records where the run came from (``'daily_check'`` for the
+    opt-in background grade, ``'dashboard'`` for the dry-run, ``None`` for a
+    manual run) so the Release dropdown can tag it. It is cosmetic only and
+    defaults to ``None`` for backward compatibility with older reports.
     """
     if directory is None:
         directory = report_directory(course.name, assignment.title)
@@ -717,8 +937,9 @@ def write_evaluation_report(
         course_name=course.name,
         course_work_id=assignment.id,
         course_work_title=assignment.title,
-        assignment_config_id=config.assignment_id,
+        assignment_config_id=rubric_config_id(config),
         csv_file=mashov_csv_name(assignment.title),
+        source=source,
         entries=[
             ReportEntry(
                 student_id=row.submission.student_id,
@@ -726,6 +947,7 @@ def write_evaluation_report(
                 submission_id=row.submission.submission_id,
                 doc_id=row.submission.doc_id,
                 result=row.result,
+                audit=_audit_payload(row),
             )
             for row in rows
             if row.result is not None
@@ -824,6 +1046,29 @@ def _run_release_flow(service: ClassroomService) -> int:
     publish_grades = options["publish_grades"]
     post_comment = options["post_comment"]
     return_submissions = options["return_submissions"]
+
+    # Same fail-fast ownership check as the Streamlit release: Classroom only
+    # lets the creating Developer Console project patch/return submissions,
+    # so skip those channels up front instead of 403-ing per student.
+    if publish_grades or return_submissions:
+        try:
+            writable = service.is_coursework_writable(
+                report.course_id, report.course_work_id
+            )
+        except Exception:  # noqa: BLE001 - ownership check must never block
+            writable = None
+        if writable is False:
+            print(
+                "WARNING: this assignment was not created by this Developer "
+                "Console project (OAuth client), so Classroom will refuse "
+                "grade updates and returns with HTTP 403 "
+                "@ProjectPermissionDenied. Grades/returns are skipped; "
+                "feedback comments below still run. To enable grading, run "
+                "'python -m src.migrate_class_assignments --course "
+                '"<name>" --apply\' and grade the clone.'
+            )
+            publish_grades = False
+            return_submissions = False
 
     total = len(report.entries)
     grades = 0

@@ -151,14 +151,18 @@ def test_well_formed_rubrics_get_no_skip_block() -> None:
     for name in ("lesson_1.json", "lesson_2.json"):
         config = _load(name)
         assert _exempt_tasks_block(config) == ""
-        prompt = _build_prompt("Noa", "print('hi')", config)
+        prompt, trimmed = _build_prompt("Noa", "print('hi')", config)
         assert "SKIP THESE TASKS" not in prompt
         # No noise for rubrics with nothing broken.
         assert '"exempt"' not in prompt
+        # A one-line document is never trimmed.
+        assert not trimmed
 
 
 def test_exempt_flag_is_visible_in_the_tasks_json() -> None:
-    prompt = _build_prompt("Noa", "print('hi')", _load("lesson_2_worksheet.json"))
+    prompt, _trimmed = _build_prompt(
+        "Noa", "print('hi')", _load("lesson_2_worksheet.json")
+    )
     tasks_json = prompt.split("Tasks (JSON):\n", 1)[1].split("\n\n", 1)[0]
     flagged = [task for task in json.loads(tasks_json) if task.get("exempt")]
     assert [task["id"] for task in flagged] == [5]

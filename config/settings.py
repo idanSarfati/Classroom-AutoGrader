@@ -133,6 +133,99 @@ class Settings(BaseModel):
         default=None,
         description="Groq API key used for LLM evaluations.",
     )
+    groq_api_keys: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional comma-separated extra Groq keys (GROQ_API_KEYS). All keys "
+            "share one token bucket via rotation: when one hits 429 the next "
+            "key serves the retry, multiplying the free-tier budget."
+        ),
+    )
+    llm_fallback_provider: str = Field(
+        default="",
+        description=(
+            "Named fallback provider (LLM_FALLBACK_PROVIDER): 'gemini' or "
+            "'openrouter'. Selecting one fills in a correct base URL and a sane "
+            "default model, so only LLM_FALLBACK_API_KEY is needed. Leave empty "
+            "to configure base_url/model explicitly instead."
+        ),
+    )
+    llm_fallback_model: str = Field(
+        default="",
+        description=(
+            "Fallback model id (LLM_FALLBACK_MODEL, e.g. a Gemini or OpenRouter "
+            "model). Overrides the named provider's default; used only after every "
+            "Groq key is exhausted; empty disables."
+        ),
+    )
+    llm_fallback_api_key: Optional[str] = Field(
+        default=None,
+        description="API key for the fallback provider (LLM_FALLBACK_API_KEY).",
+    )
+    llm_fallback_base_url: str = Field(
+        default="",
+        description=(
+            "OpenAI-compatible base URL of the fallback provider "
+            "(LLM_FALLBACK_BASE_URL, e.g. https://openrouter.ai/api/v1 or "
+            "https://generativelanguage.googleapis.com/v1beta/openai/)."
+        ),
+    )
+    llm_fallback_api_keys: Optional[str] = Field(
+        default=None,
+        description=(
+            "Extra fallback keys, comma-separated (LLM_FALLBACK_API_KEYS). "
+            "Pooled with LLM_FALLBACK_API_KEY and rotated on 429, exactly "
+            "like GROQ_API_KEYS. Use it for a second Gemini project key so "
+            "one exhausted project does not kill the fallback."
+        ),
+    )
+    llm_tertiary_provider: str = Field(
+        default="",
+        description=(
+            "Tertiary provider used only when primary AND fallback pools are "
+            "all exhausted (LLM_TERTIARY_PROVIDER, e.g. 'cloudflare'). Same "
+            "preset mechanism as LLM_FALLBACK_PROVIDER."
+        ),
+    )
+    llm_tertiary_model: str = Field(
+        default="",
+        description="Model id for the tertiary provider (LLM_TERTIARY_MODEL).",
+    )
+    llm_tertiary_api_key: Optional[str] = Field(
+        default=None,
+        description="API key/token for the tertiary provider (LLM_TERTIARY_API_KEY).",
+    )
+    llm_tertiary_base_url: str = Field(
+        default="",
+        description=(
+            "Explicit base URL for the tertiary provider "
+            "(LLM_TERTIARY_BASE_URL). Required for providers whose URL "
+            "contains an account id (Cloudflare)."
+        ),
+    )
+    cloudflare_account_id: str = Field(
+        default="",
+        description=(
+            "Cloudflare account id (CLOUDFLARE_ACCOUNT_ID). Fills the "
+            "https://api.cloudflare.com/client/v4/accounts/{id}/ai/v1 "
+            "base URL when the fallback/tertiary provider is 'cloudflare'."
+        ),
+    )
+    llm_audit_enabled: bool = Field(
+        default=True,
+        description=(
+            "Run the deterministic grade-audit pass after each evaluation "
+            "(LLM_AUDIT_ENABLED). Zero extra tokens: pure local math/logic "
+            "checks on score vs deductions, statuses, exempt tasks, late rule."
+        ),
+    )
+    llm_audit_autofix: bool = Field(
+        default=True,
+        description=(
+            "Let the audit pass repair a provably-wrong score (deductions sum "
+            "mismatch) instead of only flagging it (LLM_AUDIT_AUTOFIX)."
+        ),
+    )
     groq_model: str = Field(
         default=DEFAULT_GROQ_MODEL,
         description="Groq model id used for LLM evaluations.",
@@ -171,8 +264,23 @@ def load_settings() -> Settings:
         log_level=(_secret("LOG_LEVEL") or "INFO").upper(),
         dry_run=_env_bool("DRY_RUN", default=False),
         groq_api_key=_secret("GROQ_API_KEY"),
+        groq_api_keys=_secret("GROQ_API_KEYS"),
         groq_model=_secret("GROQ_MODEL") or DEFAULT_GROQ_MODEL,
         groq_base_url=_secret("GROQ_BASE_URL") or DEFAULT_GROQ_BASE_URL,
+        llm_fallback_provider=(
+            _secret("LLM_FALLBACK_PROVIDER") or ""
+        ).strip().lower(),
+        llm_fallback_model=(_secret("LLM_FALLBACK_MODEL") or "").strip(),
+        llm_fallback_api_key=_secret("LLM_FALLBACK_API_KEY"),
+        llm_fallback_base_url=(_secret("LLM_FALLBACK_BASE_URL") or "").strip(),
+        llm_fallback_api_keys=_secret("LLM_FALLBACK_API_KEYS"),
+        llm_tertiary_provider=(
+            _secret("LLM_TERTIARY_PROVIDER") or ""
+        ).strip().lower(),
+        llm_tertiary_model=(_secret("LLM_TERTIARY_MODEL") or "").strip(),
+        llm_tertiary_api_key=_secret("LLM_TERTIARY_API_KEY"),
+        llm_tertiary_base_url=(_secret("LLM_TERTIARY_BASE_URL") or "").strip(),
+        cloudflare_account_id=(_secret("CLOUDFLARE_ACCOUNT_ID") or "").strip(),
         late_penalty_points=_env_int(
             "LATE_PENALTY_POINTS",
             default=DEFAULT_LATE_PENALTY_POINTS,
@@ -182,6 +290,8 @@ def load_settings() -> Settings:
         dashboard_auto_dry_run=_env_bool(
             "DASHBOARD_AUTO_DRY_RUN", default=False
         ),
+        llm_audit_enabled=_env_bool("LLM_AUDIT_ENABLED", default=True),
+        llm_audit_autofix=_env_bool("LLM_AUDIT_AUTOFIX", default=True),
     )
 
 

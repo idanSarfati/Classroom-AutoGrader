@@ -77,7 +77,12 @@ COURSE_WORK_LIST_FIELDS = (
 # would fail every submission call with HTTP 400.
 STUDENT_SUBMISSION_LIST_FIELDS = (
     "nextPageToken,"
-    "studentSubmissions(id,userId,state,late,updateTime,assignmentSubmission)"
+    # ``creationTime`` is the submission resource's first creation instant -
+    # the closest the Classroom v1 API gets to a submission history (there is
+    # no history endpoint). It lets the late policy tell an original on-time
+    # hand-in apart from a late resubmission, because resubmissions move
+    # ``updateTime`` but not this one.
+    "studentSubmissions(id,userId,state,late,updateTime,assignmentSubmission,creationTime)"
 )
 
 # Classroom's own verdict for "handed in, not yet graded/returned".
@@ -170,6 +175,48 @@ _DRIVE_ID_PATTERNS = (
 
 class ClassroomServiceError(Exception):
     """A Google API call failed in a reportable, non-fatal way."""
+
+    # Guidance appended when the failure is an OAuth grant problem
+    # (revoked/expired refresh token). The saved ``token.json`` can look
+    # fine at startup - the access token is not yet expired, so
+    # ``auth.get_google_credentials`` returns it without refreshing - and
+    # only the first real API call triggers the refresh that Google then
+    # rejects with ``invalid_grant: Token has been expired or revoked``.
+    # Retrying can never fix that: the user must re-authorize.
+    AUTH_RECOVERY_HINT = (
+        " The saved Google authorization has expired or was revoked "
+        "(invalid_grant). Fix: delete 'token.json' and run "
+        "'python src/auth.py', approve the consent screen in the browser, "
+        "then press 'Reconnect Google' in the app sidebar and reload."
+    )
+
+
+def is_auth_failure(exc: BaseException) -> bool:
+    """True when ``exc`` looks like a dead/revoked OAuth grant.
+
+    Matches by message rather than by type so it keeps working when
+    Streamlit's hot-reload re-imports this module (the ``except
+    ClassroomServiceError`` in ``app.py`` can then miss the old class
+    object) and when the refresh error arrives wrapped inside tenacity /
+    ``HttpRequest.execute`` chains.
+    """
+    text = f"{type(exc).__name__}: {exc}".lower()
+    cause: BaseException | None = exc
+    seen = 0
+    while cause is not None and seen < 5:
+        text += f" | {type(cause).__name__}: {cause}".lower()
+        cause = cause.__cause__ or cause.__context__
+        seen += 1
+    markers = (
+        "invalid_grant",
+        "token has been expired or revoked",
+        "token has expired or been revoked",
+        "reauth",
+        "refresherror",
+        "unauthenticated",
+        "no usable google credentials",
+    )
+    return any(marker in text for marker in markers)
 
 
 def _parse_rfc3339(value: Any) -> Optional[datetime]:
@@ -309,6 +356,23 @@ class ClassroomService:
     # ------------------------------------------------------------------ #
     # Error helpers
     # ------------------------------------------------------------------ #
+    # Hint appended to 403 grade/return failures. Classroom only lets the
+    # Developer Console project that created a coursework item patch or
+    # return its submissions ("PERMISSION_DENIED if the requesting developer
+    # project did not create the corresponding course work"). The raw
+    # "@ProjectPermissionDenied The Developer Console project is not
+    # permitted to make this request." message does not say that, so users
+    # keep re-trying scopes and payloads that were never the problem.
+    PROJECT_OWNERSHIP_HINT = (
+        " This coursework was not created by this Developer Console project "
+        "(OAuth client). Google Classroom only allows the project that created "
+        "a coursework item to patch grades or return its submissions, even for "
+        "teachers of the course. Fix: create the assignment through this same "
+        "OAuth client (credentials.json) - e.g. 'python -m "
+        "src.migrate_class_assignments --course \"<name>\" --apply' - then grade "
+        "the clone. Verify with coursework.associatedWithDeveloper == True."
+    )
+
     @staticmethod
     def _api_error(action: str, exc: HttpError) -> ClassroomServiceError:
         """Turn an :class:`HttpError` into a human-readable service error."""
@@ -319,7 +383,22 @@ class ClassroomService:
             message = payload.get("error", {}).get("message") or message
         except Exception:  # noqa: BLE001 - keep the raw error as a fallback
             pass
-        return ClassroomServiceError(f"Failed to {action} (HTTP {status}): {message}")
+        text = f"Failed to {action} (HTTP {status}): {message}"
+        lowered = f"{action} {message}".lower()
+        is_grade_or_return = ("update grade" in lowered) or (
+            "return submission" in lowered
+        )
+        is_project_denied = (
+            "projectpermissiondenied" in lowered
+            or "developer console project" in lowered
+            or "did not create the corresponding course work" in lowered
+            or "requesting developer project did not create" in lowered
+        )
+        if is_grade_or_return and is_project_denied and (
+            ClassroomService.PROJECT_OWNERSHIP_HINT not in text
+        ):
+            text += ClassroomService.PROJECT_OWNERSHIP_HINT
+        return ClassroomServiceError(text)
 
     @staticmethod
     def _execute(request: Any, action: str) -> Any:
@@ -334,11 +413,23 @@ class ClassroomService:
         Non-transient failures (403, 404, 400, ...) are raised immediately -
         the caller turns them into a :class:`ClassroomServiceError` that
         Streamlit renders as a normal error message.
+
+        Auth failures (a revoked/expired OAuth grant surfacing as
+        ``invalid_grant`` during the lazy token refresh inside
+        ``request.execute()``) carry :attr:`ClassroomServiceError.AUTH_RECOVERY_HINT`
+        so the UI tells the user to re-authorize instead of retrying.
         """
         try:
             return call_with_retry(request.execute, action=action)
         except HttpError as exc:
-            raise ClassroomService._api_error(action, exc) from exc
+            err = ClassroomService._api_error(action, exc)
+            if is_auth_failure(exc) and (
+                ClassroomServiceError.AUTH_RECOVERY_HINT not in str(err)
+            ):
+                err = ClassroomServiceError(
+                    f"{err}{ClassroomServiceError.AUTH_RECOVERY_HINT}"
+                )
+            raise err from exc
         except Exception as exc:  # noqa: BLE001 - surfaced to the caller
             # Only claim a retry count when retries actually happened, so the
             # message does not send the user hunting for a network problem
@@ -349,8 +440,13 @@ class ClassroomService:
                 if is_transient_google_error(exc)
                 else ""
             )
+            hint = (
+                ClassroomServiceError.AUTH_RECOVERY_HINT
+                if is_auth_failure(exc)
+                else ""
+            )
             raise ClassroomServiceError(
-                f"Failed to {action}: {type(exc).__name__}: {exc}.{retried}"
+                f"Failed to {action}: {type(exc).__name__}: {exc}.{retried}{hint}"
             ) from exc
 
 
@@ -581,6 +677,7 @@ class ClassroomService:
             submitted_at=_parse_rfc3339(
                 raw.get("assigneeSubmissionTime")
             ) or _parse_rfc3339(raw.get("updateTime")),
+            first_submitted_at=_parse_rfc3339(raw.get("creationTime")),
         )
 
     def get_submissions(
@@ -782,6 +879,61 @@ class ClassroomService:
                 yield from cls._walk_segments(toc.get("content") or [])
 
             # sectionBreak segments contain no extractable text runs.
+
+    def get_course_work(
+        self, course_id: str, course_work_id: str
+    ) -> dict[str, Any]:
+        """Return the raw coursework resource for one assignment.
+
+        The payload carries ``associatedWithDeveloper``: True only when the
+        coursework was created by this Developer Console project (OAuth
+        client). Only such items accept grade patches and returns - this is
+        what :meth:`assert_coursework_writable` checks before a release burns
+        a call on a guaranteed 403.
+        """
+        return self._execute(
+            self.classroom.courses()
+            .courseWork()
+            .get(courseId=course_id, id=course_work_id),
+            f"get course work '{course_work_id}'",
+        )
+
+    def is_coursework_writable(
+        self, course_id: str, course_work_id: str
+    ) -> bool:
+        """True when this project may patch grades / return submissions here.
+
+        Reads the coursework and returns its ``associatedWithDeveloper``
+        flag. A read/list failure degrades to True (unknown, not forbidden)
+        so a transient get error can never block a release that might work.
+        """
+        try:
+            item = self.get_course_work(course_id, course_work_id)
+        except ClassroomServiceError:
+            logger.warning(
+                "Could not verify coursework ownership for '%s'; "
+                "proceeding with the grade update.",
+                course_work_id,
+            )
+            return True
+        return bool(item.get("associatedWithDeveloper"))
+
+    def assert_coursework_writable(
+        self, course_id: str, course_work_id: str
+    ) -> None:
+        """Fail fast with an actionable error for foreign coursework.
+
+        Raises :class:`ClassroomServiceError` - carrying the same guidance
+        as the 403 hint in :meth:`_api_error` - when the coursework was not
+        created by this Developer Console project, instead of letting every
+        per-student ``patch`` fail with Google's opaque
+        ``@ProjectPermissionDenied`` message.
+        """
+        if not self.is_coursework_writable(course_id, course_work_id):
+            raise ClassroomServiceError(
+                f"Cannot publish grades for coursework '{course_work_id}'."
+                + self.PROJECT_OWNERSHIP_HINT
+            )
 
     # ------------------------------------------------------------------ #
     # Grading writes (require the classroom.coursework.students scope)
@@ -1034,6 +1186,21 @@ class ClassroomService:
             page_token = response.get("nextPageToken")
             if not page_token:
                 return found
+
+    def latest_feedback_comment(self, doc_id: str) -> Optional[str]:
+        """Return this app's most recent comment on ``doc_id``, or ``None``.
+
+        :meth:`_our_comments` returns comments oldest first, so the last one
+        is the latest feedback the app published on the document - the one
+        the late-submission policy inspects to decide whether an earlier run
+        already charged the late penalty for this submission's original
+        hand-in. ``None`` when the document has no previous comment from this
+        app (e.g. the first time a student is graded).
+        """
+        previous = self._our_comments(doc_id)
+        if not previous:
+            return None
+        return (previous[-1].get("content") or "").strip() or None
 
     def _delete_comment_quietly(self, doc_id: str, comment_id: str) -> bool:
         """Delete one of our own comments; never raises.

@@ -1,0 +1,104 @@
+{
+  "assignment_title": "תרגול יחידות 1-2",
+  "topic": "יחידות 1-2: משתנים, טיפוסי נתונים, פלט והשמה",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א': שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט של: print(10, \"apples\", True)",
+          "correct_answer": "10 apples True"
+        },
+        {
+          "id": "q2",
+          "type": "multiple_choice",
+          "question": "איזה שם משתנה יגרום לשגיאת תחביר (SyntaxError)?",
+          "correct_answer": "first name"
+        },
+        {
+          "id": "q3",
+          "type": "multiple_choice",
+          "question": "מה תדפיס הפקודה print(type(data)) עבור data = 7.0?",
+          "correct_answer": "<class 'float'>"
+        },
+        {
+          "id": "q4",
+          "type": "multiple_choice",
+          "question": "מה המשמעות של השורה x = x + 1?",
+          "correct_answer": "פעולת הצבה שבה הערך החדש של x יהיה הערך הקודם שלו בתוספת 1."
+        },
+        {
+          "id": "q5",
+          "type": "multiple_choice",
+          "question": "איזה מבין הערכים הבאים הוא מטיפוס בוליאני (bool)?",
+          "correct_answer": "False"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב': מעקב ריצה",
+      "weight": 30,
+      "questions": [
+        {
+          "id": "q6",
+          "type": "expected_output",
+          "question": "מה הפלט של התוכנית?",
+          "expected_output": "Scores: 90 100"
+        },
+        {
+          "id": "q7",
+          "type": "expected_output",
+          "question": "מה הפלט של התוכנית?",
+          "expected_output": "20\n10\n15"
+        },
+        {
+          "id": "q8",
+          "type": "expected_output",
+          "question": "מה תדפיס הפקודה?",
+          "expected_output": "<class 'int'>\n<class 'float'>\n<class 'bool'>"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג': תיקון שגיאות (Debugging)",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q9",
+          "type": "debugging",
+          "question": "תקן את הקוד הבא כך שיפעל:",
+          "code": "status = Success\nprint(status)",
+          "corrected_code": "status = \"Success\"\nprint(status)"
+        },
+        {
+          "id": "q10",
+          "type": "debugging",
+          "question": "תקן את הקוד הבא כך שיפעל:",
+          "code": "100 = grade\nprint(grade)",
+          "corrected_code": "grade = 100\nprint(grade)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד': כתיבת קוד מלא",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "q11",
+          "type": "code_writing",
+          "question": "כתוב תוכנית שמקבלת את המשתנים הבאים ומדפיסה פלט מסודר:",
+          "requirements": [
+            "player_tag (str)",
+            "level (int)",
+            "is_online (bool)",
+            "Single print statement combining literal text with variables"
+          ]
+        }
+      ]
+    }
+  ]
+}

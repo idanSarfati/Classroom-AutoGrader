@@ -34,6 +34,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final, Optional
 
+import pandas as pd
+
 from config.settings import settings
 from src.classroom_service import (
     PENDING_SUBMISSION_STATE,
@@ -41,7 +43,14 @@ from src.classroom_service import (
 )
 from src.fetch_submissions import UNSUPPORTED_ATTACHMENT_MSG
 from src.late_policy import penalty_for
-from src.llm_evaluator import LLMEvaluationError, evaluate_student_submission
+from src.llm_evaluator import (
+    LLMEvaluationError,
+    StudentGradeRequest,
+    evaluate_student_submission,
+    grade_students_batch,
+    last_audit_for,
+)
+from src.llm_router import DailyQuotaExhausted
 from src.main import (
     GradingRow,
     _tasks_summary,
@@ -51,6 +60,7 @@ from src.main import (
 )
 from src.models import (
     AssignmentConfig,
+    AssignmentSpec,
     Course,
     CourseWork,
     GradingResult,
@@ -58,6 +68,14 @@ from src.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# The real evaluator, captured at import time. Tests swap the evaluator by
+# patching this module's ``evaluate_student_submission`` attribute (or by
+# passing ``evaluate=``), and the grading site below must tell "patched fake"
+# from "production" - comparing against this captured original is the only
+# comparison that survives such patching (comparing two module-attribute
+# reads would compare the fake to itself).
+_REAL_EVALUATOR = evaluate_student_submission
 
 # The pipeline is *always* a dry run. This is not read from the environment on
 # purpose: ``settings.dry_run`` is a free-form app-wide preference, whereas the
@@ -360,7 +378,7 @@ class DryRunAssignmentResult:
 
 
 def dry_run_rows(result: DryRunAssignmentResult) -> list[dict[str, Any]]:
-    """Display rows for one dry-run outcome: predicted score + feedback."""
+    """Display rows for one dry-run outcome: predicted score + audit badge."""
     rows: list[dict[str, Any]] = []
     for row in result.rows:
         grading: Optional[GradingResult] = row.result
@@ -382,6 +400,9 @@ def dry_run_rows(result: DryRunAssignmentResult) -> list[dict[str, Any]]:
                 "Score": score,
                 "Tasks": status,
                 "Deductions": deductions,
+                # The audit badge sits next to the score it vets, so a repaired
+                # or suspicious prediction is visible at a glance.
+                "Audit": audit_badge(row),
                 "Feedback (Hebrew)": feedback,
                 "Error": error,
                 "doc_id": row.submission.doc_id,
@@ -390,7 +411,37 @@ def dry_run_rows(result: DryRunAssignmentResult) -> list[dict[str, Any]]:
     return rows
 
 
-ConfigResolver = Callable[[CourseWork], Optional[tuple[Path, AssignmentConfig]]]
+def coerce_score_column(frame: "pd.DataFrame") -> "pd.DataFrame":
+    """Make the ``Score`` column numerically safe before it is rendered/saved.
+
+    Scores arrive as a mix of real numbers (``85``) and the literal ``"-"``
+    placeholder used for a failed or missing evaluation. Left alone, pandas
+    stores the column as ``object``, and ``pa.Table.from_pandas`` then raises
+    on export because Arrow cannot infer a single type. Coercing to a nullable
+    ``Float64`` turns ``"-"`` into ``<NA>`` so the column is always numeric and
+    every downstream consumer (Streamlit, Arrow, CSV, stats) behaves.
+    """
+    if "Score" not in frame.columns:
+        return frame
+    out = frame.copy()
+    out["Score"] = pd.to_numeric(out["Score"], errors="coerce").astype("Float64")
+    return out
+
+
+def audit_badge(row: "GradingRow") -> str:
+    """Audit status for display rows ('-' when the row was never audited)."""
+    verdict = getattr(row, "audit", None)
+    if verdict is None:
+        return "-"
+    try:
+        return verdict.badge()
+    except Exception:
+        return "?"
+
+
+ConfigResolver = Callable[
+    [CourseWork], Optional[tuple[Path, AssignmentConfig | AssignmentSpec]]
+]
 Evaluator = Callable[..., GradingResult]
 
 
@@ -401,6 +452,7 @@ def run_dry_run_evaluation(
     *,
     directory: Optional[Path] = None,
     evaluate: Optional[Evaluator] = None,
+    source: Optional[str] = None,
     on_status: Optional[Callable[[str], None]] = None,
     on_progress: Optional[Callable[[float], None]] = None,
     pause: Optional[Callable[[], None]] = None,
@@ -431,6 +483,11 @@ def run_dry_run_evaluation(
         ``exports/<Course>/<Assignment>/`` layout.
     evaluate:
         Grading callable; injectable so tests never touch the network.
+    source:
+        Origin tag stored on each saved report (``'dashboard'`` for the
+        dry-run, ``'daily_check'`` when the background scan reuses this
+        pipeline in its opt-in ``--grade`` mode). Cosmetic only - the Release
+        dropdown uses it to label where a report came from.
     pause:
         Called between students (Groq meters output tokens per minute), never
         after the last one.
@@ -444,6 +501,12 @@ def run_dry_run_evaluation(
         )
     # Resolved here rather than in the signature so tests (and any future
     # caller) can swap the evaluator by patching this module attribute.
+    # The production path (no patch) grades through the parallel batch engine;
+    # a patched/injected evaluator keeps the historic sequential loop below.
+    # ``grade_students_batch`` always calls the real
+    # ``evaluate_student_submission``, so when tests patch this module's
+    # attribute the batch must follow the patch too - hence the identity
+    # check at the grading site.
     grade_one = evaluate if evaluate is not None else evaluate_student_submission
 
     reader = ReadOnlyClassroomService(service)
@@ -477,6 +540,11 @@ def run_dry_run_evaluation(
             config_path=config_path,
         )
 
+        # --- Fetch documents first (fast Google reads), then grade the whole
+        # group in parallel (slow LLM waits overlap). The old loop did
+        # read -> grade -> pause per student, so every student paid a pacing
+        # sleep that exists to protect the *LLM* per-minute budget, not Docs.
+        gradable: list[tuple[Any, str, int]] = []
         for submission in group.submissions:
             done += 1
             if on_status:
@@ -489,46 +557,173 @@ def run_dry_run_evaluation(
                 outcome.rows.append(
                     GradingRow(submission, error=UNSUPPORTED_ATTACHMENT_MSG)
                 )
+                _report_progress(on_progress, done, total)
+                continue
+            if on_status:
+                on_status(
+                    f"[{done}/{total}] {group.assignment.title}: "
+                    f"{submission.student_name} - reading document..."
+                )
+            try:
+                doc_text = reader.extract_doc_text(submission.doc_id)
+            except ClassroomServiceError as exc:
+                outcome.rows.append(
+                    GradingRow(
+                        submission,
+                        error=f"Document extraction failed: {exc}",
+                    )
+                )
+                _report_progress(on_progress, done, total)
+                continue
+            gradable.append(
+                (
+                    submission,
+                    doc_text,
+                    penalty_for(
+                        submission,
+                        group.assignment,
+                        settings.late_penalty_points,
+                        first_submitted_at=submission.first_submitted_at,
+                    ),
+                )
+            )
+            _report_progress(on_progress, done, total)
+
+        if gradable:
+            if on_status:
+                on_status(
+                    f"[{done}/{total}] {group.assignment.title}: scoring "
+                    f"{len(gradable)} submission(s) in parallel..."
+                )
+            batch_requests = [
+                StudentGradeRequest(
+                    student_name=submission.student_name,
+                    raw_doc_text=doc_text,
+                    late_penalty_points=late_points,
+                )
+                for submission, doc_text, late_points in gradable
+            ]
+
+            def _on_one(outcome_in: Any, finished: int, _total: int) -> None:
+                _report_progress(on_progress, done - len(gradable) + finished, total)
+
+            if grade_one is not _REAL_EVALUATOR:
+                # Test/headless path: the evaluator was patched or injected.
+                # Grade sequentially through it (it may be a recording fake),
+                # preserving the historic pause-between-students contract.
+                from src.llm_evaluator import StudentGradeOutcome as _Outcome
+
+                batch_outcomes = []
+                for position, req in enumerate(batch_requests):
+                    try:
+                        result = grade_one(
+                            req.student_name,
+                            req.raw_doc_text,
+                            config,
+                            late_penalty_points=req.late_penalty_points,
+                        )
+                        batch_outcomes.append(
+                            _Outcome(student_name=req.student_name, result=result)
+                        )
+                    except DailyQuotaExhausted as exc:
+                        batch_outcomes.append(
+                            _Outcome(
+                                student_name=req.student_name,
+                                error=f"Daily quota exhausted: {exc}",
+                                quota_exhausted=True,
+                            )
+                        )
+                        batch_outcomes.extend(
+                            _Outcome(
+                                student_name=later.student_name,
+                                error="Not graded: daily quota exhausted earlier "
+                                "in this batch.",
+                                quota_exhausted=True,
+                            )
+                            for later in batch_requests[position + 1 :]
+                        )
+                        break
+                    except LLMEvaluationError as exc:
+                        batch_outcomes.append(
+                            _Outcome(
+                                student_name=req.student_name,
+                                error=f"LLM evaluation failed: {exc}",
+                            )
+                        )
+                    except Exception as exc:  # noqa: BLE001 - one bad row never kills a group
+                        batch_outcomes.append(
+                            _Outcome(
+                                student_name=req.student_name,
+                                error=f"LLM evaluation failed: {exc}",
+                            )
+                        )
+                    if pause is not None and position < len(batch_requests) - 1:
+                        pause()
             else:
                 try:
-                    doc_text = reader.extract_doc_text(submission.doc_id)
-                except ClassroomServiceError as exc:
-                    outcome.rows.append(
-                        GradingRow(
-                            submission,
-                            error=f"Document extraction failed: {exc}",
-                        )
+                    batch_outcomes = grade_students_batch(
+                        batch_requests, config, on_result=_on_one, pause=pause
                     )
-                    _report_progress(on_progress, done, total)
-                    continue
+                except Exception as exc:  # noqa: BLE001 - never lose a whole group
+                    logger.exception("Parallel dry-run batch failed: %s", exc)
+                    from src.llm_evaluator import StudentGradeOutcome as _Outcome
 
-                try:
-                    result = grade_one(
-                        submission.student_name,
-                        doc_text,
-                        config,
-                        late_penalty_points=penalty_for(
-                            submission,
-                            group.assignment,
-                            settings.late_penalty_points,
-                        ),
-                    )
-                    outcome.rows.append(GradingRow(submission, result=result))
-                except LLMEvaluationError as exc:
-                    outcome.rows.append(
-                        GradingRow(
-                            submission,
+                    batch_outcomes = [
+                        _Outcome(
+                            student_name=req.student_name,
                             error=f"LLM evaluation failed: {exc}",
                         )
+                        for req in batch_requests
+                    ]
+            by_submission = {s.student_name: s for s, _, _ in gradable}
+            quota_hit = False
+            for batch_outcome in batch_outcomes:
+                submission = by_submission.get(batch_outcome.student_name)
+                if submission is None:
+                    continue
+                if batch_outcome.result is not None:
+                    outcome.rows.append(
+                        GradingRow(
+                            submission,
+                            result=batch_outcome.result,
+                            audit=last_audit_for(batch_outcome.result),
+                        )
                     )
+                else:
+                    outcome.rows.append(
+                        GradingRow(
+                            submission,
+                            error=batch_outcome.error or "Evaluation failed",
+                        )
+                    )
+                    if batch_outcome.quota_exhausted:
+                        quota_hit = True
+            if quota_hit:
+                if on_status:
+                    on_status("Daily quota exhausted - stopping the dry-run.")
+                _save_dry_run_artifacts(outcome, config, directory, source)
+                results.append(outcome)
+                seen_current = False
+                for later in groups:
+                    if later is group:
+                        seen_current = True
+                        continue
+                    if seen_current:
+                        results.append(
+                            DryRunAssignmentResult(
+                                course=later.course,
+                                assignment=later.assignment,
+                                skipped_reason="Not evaluated: daily quota "
+                                "exhausted earlier.",
+                            )
+                        )
+                if on_progress:
+                    on_progress(1.0)
+                return results
 
             _report_progress(on_progress, done, total)
-            # Groq meters output tokens per minute: pause between students so
-            # sequential completions do not burst the OTPM budget (HTTP 429).
-            if pause is not None and done < total:
-                pause()
 
-        _save_dry_run_artifacts(outcome, config, directory)
+        _save_dry_run_artifacts(outcome, config, directory, source)
         results.append(outcome)
 
     if on_progress:
@@ -545,8 +740,9 @@ def _report_progress(
 
 def _save_dry_run_artifacts(
     outcome: DryRunAssignmentResult,
-    config: AssignmentConfig,
+    config: AssignmentConfig | AssignmentSpec,
     directory: Optional[Path],
+    source: Optional[str] = None,
 ) -> None:
     """Write the Mashov CSV (always) and the report JSON (when it has entries).
 
@@ -554,6 +750,9 @@ def _save_dry_run_artifacts(
     evaluation reports/scores locally" means. A report with no successful
     evaluation would be an empty husk in the Release tab, so the JSON is skipped
     in that case while the CSV still records what went wrong per student.
+
+    ``source`` is stored on the report so the Release dropdown can tag where it
+    came from (dry-run vs. the background ``--grade`` scan vs. a manual run).
     """
     try:
         outcome.csv_path = write_mashov_csv(
@@ -569,6 +768,7 @@ def _save_dry_run_artifacts(
                 outcome.assignment,
                 config,
                 directory=directory,
+                source=source,
             )
     except Exception as exc:  # noqa: BLE001 - a save failure must not abort the run
         logger.warning(

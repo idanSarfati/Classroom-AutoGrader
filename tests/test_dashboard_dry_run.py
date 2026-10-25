@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -686,6 +686,33 @@ def test_pause_runs_between_students_but_never_after_the_last(tmp_path) -> None:
     assert len(pauses) == pending_total - 1
 
 
+def test_the_status_line_moves_at_the_fetch_to_grade_boundary(tmp_path) -> None:
+    """It must not sit on 'reading document' for a whole grading round trip.
+
+    The Groq call is the long pole of a dry-run. If the status line is only
+    refreshed before the Google fetch, the screen claims to be reading a
+    document for the entire time it is actually waiting on the model - which is
+    precisely the 'looks frozen' failure this pipeline had.
+    """
+    service = two_pending_service()
+    groups = collect_pending_submissions(service)
+    beats: list[str] = []
+
+    run_dry_run_evaluation(
+        service,
+        groups,
+        _resolver(),
+        directory=tmp_path,
+        evaluate=fake_evaluate,
+        on_status=beats.append,
+    )
+
+    assert any("reading document" in beat for beat in beats)
+    assert any("scoring" in beat for beat in beats)
+    # Each beat carries its position, so the teacher can follow the batch.
+    assert all(beat.startswith("[") for beat in beats)
+
+
 def test_the_pipeline_refuses_to_run_when_dry_run_is_off(
     tmp_path, monkeypatch
 ) -> None:
@@ -1055,6 +1082,90 @@ def test_a_failed_scan_is_reported_instead_of_hanging(
 
     assert any(message.startswith("error:") for message in stub.messages)
     assert stub.session_state.get("dashboard_groups") is None
+
+
+# --------------------------------------------------------------------------- #
+# 6. The cached scan snapshot must stay pickle-safe
+#
+#    Regression guard for the Streamlit hot-reload crash: st.cache_data
+#    pickles its return value, and re-imported Pydantic classes
+#    (src.models.Course & friends) are not picklable by reference -
+#    "Can't pickle <class 'src.models.Course'>: it's not the same object as
+#    src.models.Course". The cache therefore stores plain dicts only, and the
+#    tab rebuilds PendingGroups out of them.
+# --------------------------------------------------------------------------- #
+
+
+def _assert_only_primitives(node) -> None:
+    """Fail if any non-JSON-primitive (i.e. class instance) sneaks in."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            assert isinstance(key, str)
+            _assert_only_primitives(value)
+    elif isinstance(node, (list, tuple)):
+        for value in node:
+            _assert_only_primitives(value)
+    else:
+        assert node is None or isinstance(node, (str, int, float, bool)), (
+            f"snapshot must hold only primitives, found {type(node)!r}"
+        )
+
+
+def test_scan_snapshot_is_plain_pickle_safe_data(dashboard_app) -> None:
+    """The cached payload holds no class references, so it always pickles."""
+    import pickle
+
+    app_module, _stub = dashboard_app
+    groups = _two_pending_groups()
+
+    snapshot = app_module._snapshot_pending_groups(groups)
+
+    _assert_only_primitives(snapshot)
+    pickle.dumps(snapshot)  # would raise on any model instance inside
+
+    restored = app_module._restore_pending_groups(snapshot)
+    assert restored == groups
+    assert all(isinstance(group, PendingGroup) for group in restored)
+    assert isinstance(restored[0].course, Course)
+
+
+def test_snapshot_round_trip_keeps_dates_and_lateness(dashboard_app) -> None:
+    """JSON-mode dumping must not lose temporal fields on the way back."""
+    app_module, _stub = dashboard_app
+    group = PendingGroup(
+        course=make_course(),
+        assignment=make_work(
+            "w1", due_date=date(2026, 10, 1), due_datetime=SUBMITTED_AT
+        ),
+        submissions=(make_submission("u1", "Noa", is_late=True),),
+    )
+
+    restored = app_module._restore_pending_groups(
+        app_module._snapshot_pending_groups([group])
+    )
+
+    assert restored == [group]
+    assert restored[0].assignment.due_datetime == SUBMITTED_AT
+    assert restored[0].submissions[0].is_late is True
+
+
+def test_the_dashboard_restores_groups_out_of_the_snapshot(
+    dashboard_app, monkeypatch
+) -> None:
+    """The tab consumes the dict snapshot and rebuilds domain objects."""
+    app_module, stub = dashboard_app
+    monkeypatch.setattr(stub, "buttons", {SCAN_BUTTON})
+    snapshot = app_module._snapshot_pending_groups(_two_pending_groups())
+    scanner = _FakeScanner(snapshot)
+    monkeypatch.setattr(app_module, "_load_pending_dashboard", scanner)
+
+    app_module.render_dashboard_tab(two_pending_service())
+
+    assert scanner.calls == [None]
+    stored = stub.session_state["dashboard_groups"]
+    assert stored and all(isinstance(group, PendingGroup) for group in stored)
+    assert dict(stub.metrics)["Submissions turned in"] == 2
+    assert stub.dataframes, "the pending table renders from the restored groups"
 
 
 def test_google_requests_cannot_block_forever() -> None:
@@ -1464,5 +1575,129 @@ def test_inline_results_are_kept_apart_per_course(dashboard_app) -> None:
 
 
 
+
+# --------------------------------------------------------------------------- #
+# 9. Score-column coercion (the PyArrow crash) and daily-quota early-stop
+# --------------------------------------------------------------------------- #
+
+import pandas as pd  # noqa: E402
+
+from src.dashboard import coerce_score_column  # noqa: E402
+from src.llm_router import DailyQuotaExhausted  # noqa: E402
+
+
+def test_coerce_score_column_turns_placeholder_into_nullable_float() -> None:
+    """A mixed int + '-' Score column is what crashed ``from_pandas``.
+
+    Real numbers must survive, the ``-`` placeholder becomes ``<NA>``, and the
+    column dtype is numeric so Arrow can serialise it.
+    """
+    frame = pd.DataFrame({"Score": [85, "-", 90, None], "Student": list("abcd")})
+    out = coerce_score_column(frame)
+
+    assert str(out["Score"].dtype) == "Float64"
+    assert out["Score"][0] == 85
+    assert out["Score"][2] == 90
+    assert pd.isna(out["Score"][1]) and pd.isna(out["Score"][3])
+    # The other columns are untouched and the input frame is not mutated.
+    assert list(out["Student"]) == list("abcd")
+    assert frame["Score"][1] == "-"
+
+
+def test_coerce_score_column_is_a_noop_without_a_score_column() -> None:
+    frame = pd.DataFrame({"Student": ["Noa"]})
+    out = coerce_score_column(frame)
+    assert list(out.columns) == ["Student"]
+
+
+def test_coerce_score_column_output_is_arrow_safe() -> None:
+    """The real regression: the coerced frame must serialise through Arrow."""
+    pa = pytest.importorskip("pyarrow")
+    frame = pd.DataFrame({"Score": [88, "-", 72.5]})
+    table = pa.Table.from_pandas(coerce_score_column(frame), preserve_index=False)
+    assert table.num_rows == 3
+
+
+def _quota_service() -> FakeClassroomService:
+    """One course, one assignment, three pending students."""
+    return FakeClassroomService(
+        courses=(make_course(),),
+        works={"c1": [make_work("w1", title="lesson_1")]},
+        submissions={
+            "w1": [
+                make_submission("u1", "Noa", doc_id="doc-1"),
+                make_submission("u2", "Dana", doc_id="doc-2"),
+                make_submission("u3", "Yael", doc_id="doc-3"),
+            ]
+        },
+        docs={"doc-1": "print(1)", "doc-2": "print(2)", "doc-3": "print(3)"},
+    )
+
+
+def test_daily_quota_stops_the_batch_and_keeps_partial_work(tmp_path) -> None:
+    """When every provider is dry for the day, stop - do not fail each student.
+
+    The first student grades fine, the second raises DailyQuotaExhausted, and
+    the third must be marked skipped rather than being sent to a dead provider.
+    """
+    service = _quota_service()
+    groups = collect_pending_submissions(service)
+    calls: list[str] = []
+
+    def flaky(name, doc_text, assignment, late_penalty_points=0):
+        calls.append(name)
+        if name == "Dana":
+            raise DailyQuotaExhausted("Groq daily quota reached; no fallback set.")
+        return make_result(name)
+
+    results = run_dry_run_evaluation(
+        service, groups, _resolver(), directory=tmp_path, evaluate=flaky
+    )
+
+    # The third student was never attempted - one wasted call, not three.
+    assert calls == ["Noa", "Dana"]
+    assert len(results) == 1
+    outcome = results[0]
+    assert len(outcome.rows) == 3
+    assert outcome.rows[0].result is not None  # Noa graded before the stop
+    assert outcome.rows[1].result is None
+    assert "Daily quota exhausted" in (outcome.rows[1].error or "")
+    assert outcome.rows[2].result is None
+    assert "not graded" in (outcome.rows[2].error or "").lower()
+    assert service.write_calls == []
+
+
+def test_daily_quota_marks_later_groups_as_skipped(tmp_path) -> None:
+    """Assignments not yet started are reported skipped, never silently lost."""
+    service = FakeClassroomService(
+        courses=(make_course(),),
+        works={
+            "c1": [
+                make_work("w1", title="lesson_1"),
+                make_work("w2", title="lesson_2"),
+            ]
+        },
+        submissions={
+            "w1": [make_submission("u1", "Noa", doc_id="doc-1")],
+            "w2": [make_submission("u2", "Dana", doc_id="doc-2")],
+        },
+        docs={"doc-1": "print(1)", "doc-2": "print(2)"},
+    )
+    groups = collect_pending_submissions(service)
+
+    def always_quota(name, doc_text, assignment, late_penalty_points=0):
+        raise DailyQuotaExhausted("out of daily quota")
+
+    results = run_dry_run_evaluation(
+        service, groups, _resolver(), directory=tmp_path, evaluate=always_quota
+    )
+
+    assert len(results) == 2
+    assert results[0].rows[0].result is None
+    assert "Daily quota exhausted" in (results[0].rows[0].error or "")
+    assert results[1].skipped_reason is not None
+    assert "daily quota" in results[1].skipped_reason.lower()
+    assert results[1].rows == []
+    assert service.write_calls == []
 
 

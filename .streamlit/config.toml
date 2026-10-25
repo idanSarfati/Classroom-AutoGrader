@@ -1,0 +1,16 @@
+# Streamlit dashboard configuration.
+#
+# Pin the dashboard to the main port so every launch (Run-Dashboard.ps1 or a
+# plain `streamlit run app.py`) lands on the same URL. Without this, Streamlit
+# silently falls back to 8502+ when 8501 is held by a stale instance - which
+# is exactly how an old-code dashboard can keep answering at the bookmarked
+# URL while the new one runs elsewhere.
+[server]
+port = 8501
+# Only accept connections from this machine: the dashboard talks to Google
+# Classroom with teacher credentials and must not be exposed to the LAN.
+address = "localhost"
+
+[browser]
+# Skip the telemetry prompt on every start.
+gatherUsageStats = false
