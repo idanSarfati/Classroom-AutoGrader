@@ -32,6 +32,7 @@ from src.classroom_service import ClassroomServiceError  # noqa: E402
 from src.dashboard import (  # noqa: E402
     CLASSROOM_WRITE_METHODS,
     DRY_RUN,
+    DryRunAssignmentResult,
     DryRunWriteViolation,
     PendingGroup,
     ReadOnlyClassroomService,
@@ -194,6 +195,10 @@ class FakeClassroomService:
 
     def publish_feedback_comment(self, *args: Any, **kwargs: Any):
         return self._record("publish_feedback_comment")
+
+    def is_coursework_writable(self, course_id: str, course_work_id: str) -> bool:
+        self.read_calls.append(f"is_coursework_writable:{course_work_id}")
+        return True
 
     def _create_comment(self, *args: Any, **kwargs: Any):
         return self._record("_create_comment")
@@ -1413,6 +1418,7 @@ def test_the_scan_requests_every_field_it_actually_uses() -> None:
 # --------------------------------------------------------------------------- #
 
 INLINE_LABEL = "▶ Run Dry-Run for this assignment"
+RELEASE_LABEL = "🚀 Release Grades & Feedback to Classroom"
 
 
 def _prime_two(dashboard_app):
@@ -1574,6 +1580,134 @@ def test_inline_results_are_kept_apart_per_course(dashboard_app) -> None:
 
 
 
+
+
+# --------------------------------------------------------------------------- #
+# 8b. Inline "Release Grades & Feedback" button, per assignment
+# --------------------------------------------------------------------------- #
+
+
+def _run_inline_dry_run(
+    app_module: Any, stub: "DashboardStub", service, work_id: str = "w1"
+) -> None:
+    """Click the inline dry-run button for one assignment and absorb its rerun."""
+    stub.button_keys = {f"dryrun_c1_{work_id}_run"}
+    _render(app_module, stub, service)
+
+
+def test_release_button_appears_only_for_an_evaluated_assignment(
+    dashboard_app, inline_dry_run, monkeypatch
+) -> None:
+    """After a dry-run finishes, its assignment gets the release button;
+    the sibling assignment (not evaluated yet) does not."""
+    app_module, stub = _prime_two(dashboard_app)
+    monkeypatch.setattr(dashboard, "evaluate_student_submission", fake_evaluate)
+    service = two_assignment_pending_service()
+
+    _run_inline_dry_run(app_module, stub, service, "w1")
+    assert "dryrun_c1_w1" in stub.session_state
+    assert "dryrun_c1_w2" not in stub.session_state
+
+    stub.button_keys = set()
+    stub.messages.clear()
+    _render(app_module, stub, service)
+
+    release = [m for m in stub.messages if m.startswith("button:") and RELEASE_LABEL in m]
+    assert release == [f"button:{RELEASE_LABEL}#dryrun_c1_w1_release"]
+    assert not any("dryrun_c1_w2_release" in m for m in stub.messages)
+
+
+def test_release_button_is_hidden_without_a_dry_run(dashboard_app) -> None:
+    """No release UI before any assignment has been evaluated."""
+    app_module, stub = _prime_two(dashboard_app)
+    service = two_assignment_pending_service()
+    stub.messages.clear()
+    _render(app_module, stub, service)
+
+    assert not any(m.startswith("button:") and RELEASE_LABEL in m for m in stub.messages)
+
+
+def test_release_button_is_hidden_when_the_dry_run_was_skipped(dashboard_app) -> None:
+    """A skipped assignment (no rubric) has nothing to release."""
+    app_module, stub = _prime_two(dashboard_app)
+    stub.session_state["dryrun_c1_w1"] = DryRunAssignmentResult(
+        course=make_course(),
+        assignment=make_work("w1", title="lesson_1"),
+        skipped_reason=(
+            "No rubric JSON matched this assignment - pick one in "
+            "the Evaluate tab first."
+        ),
+    )
+    service = two_assignment_pending_service()
+    stub.messages.clear()
+    _render(app_module, stub, service)
+
+    assert not any(m.startswith("button:") and RELEASE_LABEL in m for m in stub.messages)
+
+
+def test_release_pushes_grade_comment_and_return_for_every_student(
+    dashboard_app, inline_dry_run, monkeypatch
+) -> None:
+    """Confirming the release runs the same publish path as the Release tab."""
+    app_module, stub = _prime_two(dashboard_app)
+    monkeypatch.setattr(dashboard, "evaluate_student_submission", fake_evaluate)
+    service = two_assignment_pending_service()
+
+    _run_inline_dry_run(app_module, stub, service, "w1")
+
+    # Step 1: offer the release UI.
+    stub.button_keys = {f"dryrun_c1_w1_release"}
+    _render(app_module, stub, service)
+    assert stub.session_state["dryrun_c1_w1_release_ready"]
+
+    # Step 1b: with nothing clicked, the options UI renders.
+    stub.button_keys = set()
+    stub.messages.clear()
+    _render(app_module, stub, service)
+    assert any("Publish options" in m for m in stub.messages)
+
+    # Step 2: confirm with every delivery option on.
+    stub.checkbox_value = True
+    stub.button_keys = {f"dryrun_c1_w1_release_now"}
+    _render(app_module, stub, service)
+
+    assert service.write_calls == [
+        "update_submission_grade",
+        "publish_feedback_comment",
+        "return_student_submission",
+    ]
+    assert stub.session_state["dryrun_c1_w1_released"]
+
+    # Step 3: the released banner shows until the teacher hides it.
+    stub.button_keys = set()
+    stub.checkbox_value = False
+    stub.messages.clear()
+    _render(app_module, stub, service)
+    assert any("Released to Google Classroom" in m for m in stub.messages)
+
+
+def test_release_cancel_discards_the_pending_release(
+    dashboard_app, inline_dry_run, monkeypatch
+) -> None:
+    """Cancel leaves the assignment unreleased and offers the button again."""
+    app_module, stub = _prime_two(dashboard_app)
+    monkeypatch.setattr(dashboard, "evaluate_student_submission", fake_evaluate)
+    service = two_assignment_pending_service()
+
+    _run_inline_dry_run(app_module, stub, service, "w1")
+
+    stub.button_keys = {f"dryrun_c1_w1_release"}
+    _render(app_module, stub, service)
+    assert stub.session_state["dryrun_c1_w1_release_ready"]
+
+    stub.button_keys = {f"dryrun_c1_w1_release_cancel"}
+    _render(app_module, stub, service)
+    assert "dryrun_c1_w1_release_ready" not in stub.session_state
+
+    stub.button_keys = set()
+    stub.messages.clear()
+    _render(app_module, stub, service)
+    assert any(m.startswith("button:") and RELEASE_LABEL in m for m in stub.messages)
 
 
 # --------------------------------------------------------------------------- #

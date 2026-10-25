@@ -5,7 +5,10 @@ Provides a clean four-tab interface wrapping our grading and release backend:
      are turned in but not yet returned (i.e. waiting for review), grouped by
      assignment, plus an automated **dry-run** that computes predicted scores
      and feedback for review. The dry-run is structurally read-only
-     (``DRY_RUN = True``) and can never push grades or comments back.
+     (``DRY_RUN = True``) and can never push grades or comments back. Once a
+      task's predictions are ready, a per-task **Release** button pushes those
+      grades, comments and returns to Google Classroom - the same publish path
+      as Tab 3.
   2. Evaluate Submissions: pick course, assignment, config -> evaluate turned-in docs -> export CSV + JSON report.
   3. Release Grades & Feedback: choose saved report -> preview students/scores -> push grades, private comments, doc feedback, return submissions -> prune released files.
   4. Daily Reports: browse saved read-only daily-check scans from
@@ -225,9 +228,12 @@ def main() -> None:
         st.caption("Safety")
         st.caption(
             f"Env `DRY_RUN`: **{'on' if settings.dry_run else 'off'}** · "
-            f"Dashboard dry-run: **DRY_RUN = {DRY_RUN}**. The Dashboard "
-            "evaluates and displays predictions only; grades, comments and "
-            "returns happen solely in **Release Grades & Feedback**."
+            f"Dashboard dry-run: **DRY_RUN = {DRY_RUN}**. The dry-run is "
+            "read-only - predicted scores only, nothing is pushed. Once a "
+            "task's predictions are ready, its **🚀 Release Grades & "
+            "Feedback to Classroom** button publishes grades, comments and "
+            "returns straight from the Dashboard; they can still be reviewed "
+            "first in **Release Grades & Feedback**."
         )
 
     # The Google service can fail (expired token, missing scope, bad

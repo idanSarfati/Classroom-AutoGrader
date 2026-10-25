@@ -103,6 +103,12 @@ from src.ui.helpers import (
 from src.ui.progress import (
     _LiveProgress,
 )
+from src.ui.release import (
+    _load_release_report,
+    _render_publish_options,
+    _run_release_action,
+)
+
 from src.seams import seam_fn, st_proxy
 
 logger = logging.getLogger(__name__)
@@ -411,6 +417,9 @@ def _render_inline_dry_run(
     else:
         st.markdown("🧪 **Dry-run predictions** — not published")
         _render_dry_run_assignment(stored)
+        # Publish straight from the dashboard: same grades + comments + return
+        # path as the Release Grades & Feedback tab, scoped to this task.
+        _render_release_for_result(service, group, stored)
         rerun_col, clear_col, _ = st.columns([1, 1, 2])
         with rerun_col:
             triggered = st.button(
@@ -436,6 +445,111 @@ def _render_inline_dry_run(
         # Render from the cache on the next pass, so the panel and the stored
         # result can never drift apart.
         st.rerun()
+
+RELEASE_LABEL = "🚀 Release Grades & Feedback to Classroom"
+
+def _render_release_for_result(
+    service: ClassroomService, group: PendingGroup, result: DryRunAssignmentResult
+) -> None:
+    """Offer to publish one finished dry-run straight to Google Classroom.
+
+    Reuses the **Release Grades & Feedback** tab's publish path
+    (``_run_release_action``): predicted scores become Classroom grades, the
+    Hebrew feedback is posted as Drive comments on the students' documents,
+    and the submissions are returned. Nothing is sent until the teacher
+    explicitly clicks **Release** below - the dry-run itself stays read-only.
+    """
+    if (
+        result.skipped_reason
+        or result.report_path is None
+        or result.evaluated == 0
+    ):
+        return
+
+    key = _dry_run_result_key(group)
+    ready_key = f"{key}_release_ready"
+    done_key = f"{key}_released"
+
+    if st.session_state.get(done_key):
+        st.success(
+            "✅ Released to Google Classroom - grades, comments and returns "
+            "were sent for this assignment."
+        )
+        if st.button(
+            "Hide",
+            key=f"{key}_release_hide",
+            width="stretch",
+        ):
+            st.session_state.pop(done_key, None)
+            st.rerun()
+        return
+
+    if not st.session_state.get(ready_key):
+        if st.button(
+            RELEASE_LABEL,
+            key=f"{key}_release",
+            type="primary",
+            width="stretch",
+            help=(
+                "Push the predicted scores as Classroom grades, post the "
+                "Hebrew feedback as Drive comments on the students' "
+                "documents, and return the submissions - the same publish "
+                "path as the **Release Grades & Feedback** tab."
+            ),
+        ):
+            st.session_state[ready_key] = True
+            st.rerun()
+        return
+
+    # ---- Confirm: choose what to deliver, then publish --------------------
+    report_path = result.report_path
+    st.info(
+        "Choose what to send to Google Classroom, then click **Release**. "
+        "Nothing is pushed until you do."
+    )
+    options = _render_publish_options(report_path)
+
+    col_release, col_cancel = st.columns(2)
+    with col_release:
+        if st.button(
+            "Release Grades & Feedback",
+            type="primary",
+            key=f"{key}_release_now",
+            width="stretch",
+        ):
+            _publish_dry_run_result(service, report_path, options)
+            st.session_state.pop(ready_key, None)
+            st.session_state[done_key] = True
+            st.rerun()
+    with col_cancel:
+        if st.button(
+            "Cancel",
+            key=f"{key}_release_cancel",
+            width="stretch",
+        ):
+            st.session_state.pop(ready_key, None)
+            st.rerun()
+
+
+def _publish_dry_run_result(
+    service: ClassroomService, report_path: Path, options: dict[str, bool]
+) -> None:
+    """Load the dry-run's saved report and deliver it to Classroom."""
+    report, notice = _load_release_report(report_path)
+    if report is None:
+        st.error(notice or "Could not read the saved evaluation report.")
+        return
+    if not report.entries:
+        st.warning("This report has no graded student entries to release.")
+        return
+    try:
+        _run_release_action(service, report_path, report, options)
+    except Exception as exc:  # noqa: BLE001 - surface failures in the UI
+        if is_auth_failure(exc):
+            _render_google_auth_error(exc)
+        else:
+            st.error(f"Release to Google Classroom failed: {exc}")
+
 
 def _render_dry_run_assignment(result: DryRunAssignmentResult) -> None:
     """Predicted scores, deductions and feedback for one assignment.
@@ -525,10 +639,11 @@ def render_dashboard_tab(service: ClassroomService) -> None:
     st.subheader("Pending Submissions Dashboard")
 
     st.warning(
-        "🔒 **DRY RUN** — this tab only computes predicted scores and feedback "
-        "for your review. It never pushes grades, comments, or returns to "
-        "Google Classroom. Publishing is always a deliberate, manual step in "
-        "**Release Grades & Feedback**.",
+        "🔒 **DRY RUN** — the evaluation above is read-only: it computes "
+        "predicted scores and feedback and never touches Google Classroom. "
+        "When a task's predictions are ready, use its **🚀 Release Grades & "
+        "Feedback to Classroom** button below to push grades, comments and "
+        "returns - publishing is always a deliberate, manual step.",
         icon="🛡️",
     )
 
@@ -703,4 +818,7 @@ load_rubric = seam_fn("app", "load_rubric", load_rubric)
 paced_pause = seam_fn("app", "paced_pause", paced_pause)
 resolve_mapped_config = seam_fn("app", "resolve_mapped_config", resolve_mapped_config)
 run_dry_run_evaluation = seam_fn("app", "run_dry_run_evaluation", run_dry_run_evaluation)
+_load_release_report = seam_fn("app", "_load_release_report", _load_release_report)
+_render_publish_options = seam_fn("app", "_render_publish_options", _render_publish_options)
+_run_release_action = seam_fn("app", "_run_release_action", _run_release_action)
 st = st_proxy("app", st)
