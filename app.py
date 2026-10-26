@@ -1,4 +1,4 @@
-"""Streamlit Web UI for Classroom AutoGrader.
+﻿"""Streamlit Web UI for Classroom AutoGrader.
 
 Provides a clean four-tab interface wrapping our grading and release backend:
   1. Dashboard: home view - scan the active courses, show which submissions
@@ -171,6 +171,7 @@ from src.ui.helpers import (
 from src.ui.progress import (
     _LiveProgress,
 )
+from src.ui.migrate import *
 from src.ui.release import (
     _entry_audit_badge,
     _load_release_report,
@@ -186,10 +187,10 @@ from src.ui.release import (
 def main() -> None:
     st.set_page_config(
         page_title="Classroom AutoGrader",
-        page_icon="🎓",
+        page_icon="נ“",
         layout="wide",
     )
-    st.title("🎓 Google Classroom AutoGrader")
+    st.title("נ“ Google Classroom AutoGrader")
 
     # Surface automatic API retries (dropped socket / 5xx) in the UI so a
     # brief pause never looks like a frozen app.
@@ -209,7 +210,7 @@ def main() -> None:
             "reports `invalid_grant` (token expired or revoked), delete "
             "`token.json` first, then re-authorize and reconnect."
         )
-        if st.button("🔄 Reconnect Google", width="stretch"):
+        if st.button("נ”„ Reconnect Google", width="stretch"):
             _cached_classroom_service.clear()
             try:
                 _load_courses.clear()
@@ -227,10 +228,10 @@ def main() -> None:
         st.divider()
         st.caption("Safety")
         st.caption(
-            f"Env `DRY_RUN`: **{'on' if settings.dry_run else 'off'}** · "
+            f"Env `DRY_RUN`: **{'on' if settings.dry_run else 'off'}** ֲ· "
             f"Dashboard dry-run: **DRY_RUN = {DRY_RUN}**. The dry-run is "
             "read-only - predicted scores only, nothing is pushed. Once a "
-            "task's predictions are ready, its **🚀 Release Grades & "
+            "task's predictions are ready, its **נ€ Release Grades & "
             "Feedback to Classroom** button publishes grades, comments and "
             "returns straight from the Dashboard; they can still be reviewed "
             "first in **Release Grades & Feedback**."
@@ -239,7 +240,7 @@ def main() -> None:
     # The Google service can fail (expired token, missing scope, bad
     # credentials) - and it must never take the whole UI down with it. The
     # tabs are therefore always rendered; only the three Google-backed tabs
-    # need the service. "📅 Daily Reports" reads local files exclusively
+    # need the service. "נ“… Daily Reports" reads local files exclusively
     # (``exports/daily_checks/``), so it stays fully usable - the tab a
     # teacher needs precisely to check whether the 06:00 automation ran.
     try:
@@ -263,8 +264,8 @@ def main() -> None:
             return False
         return True
 
-    tab0, tab1, tab2, tab3 = st.tabs(
-        ["🏠 Dashboard", "Evaluate Submissions", "Release Grades & Feedback", "📅 Daily Reports"]
+    tab0, tab1, tab2, tab3, tab4 = st.tabs(
+        ["Dashboard", "Evaluate Submissions", "Release Grades & Feedback", "Migrate Assignments (System Owner)", "Daily Reports"]
     )
 
     with tab0:
@@ -280,6 +281,10 @@ def main() -> None:
             render_release_tab(service)
 
     with tab3:
+        if _service_ready():
+            render_migrate_tab(service)
+
+    with tab4:
         # Local files only - never gated behind the Google connection.
         render_daily_reports_tab()
 

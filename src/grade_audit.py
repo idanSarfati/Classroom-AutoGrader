@@ -335,6 +335,19 @@ def audit_grading_result(result: Any, config: Any = None, autofix: bool = True) 
     if not (feedback or "").strip():
         add(FLAG_EMPTY_FEEDBACK, "Feedback is empty.")
     verdict.ok = not verdict.findings
+    if autofix and FLAG_DEDUCTION_SUM_MISMATCH in verdict.flags:
+        other_blocking = [
+            f for f in verdict.findings
+            if f.severity in _BLOCKING_SEVERITIES
+            and f.flag != FLAG_DEDUCTION_SUM_MISMATCH
+        ]
+        if not other_blocking and verdict.deductions_total <= 100:
+            verdict.autofixed = True
+            verdict.final_score = expected
+            try:
+                result.score = expected
+            except Exception:  # noqa: BLE001
+                pass
     if verdict.autofixed:
         verdict.ok = not any(f.flag != FLAG_DEDUCTION_SUM_MISMATCH for f in verdict.findings)
     return verdict
