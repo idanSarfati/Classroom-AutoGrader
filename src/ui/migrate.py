@@ -129,103 +129,62 @@ def render_migrate_tab(service: Any) -> None:
         course_index = 0
     course = courses[course_index]
 
-    tag = DEFAULT_TAG
-    force = False
-
-    apply_requested = st.button("Apply migration")
-
     try:
         items = list(service.list_course_work_items(course.id) or [])
     except Exception as exc:
         st.error(f"Failed to list coursework: {exc}")
         return
 
-    _assignment_labels = [str((item or {}).get("title") or (item or {}).get("name") or f"Assignment {i + 1}") for i, item in enumerate(items)] or ["All assignments"]
-    try:
-        st.selectbox("Assignment", _assignment_labels)
-    except Exception:
-        pass
-
-    plans, ignored = plan_migration(items, tag=tag, force=force)
-
-    # Optional, explicit publish step for an existing DRAFT assignment.
     draft_items = [
         item for item in items
         if str((item or {}).get("state") or "").strip().upper() == "DRAFT"
     ]
-    if draft_items:
-        draft_labels = [
-            str((item or {}).get("title") or (item or {}).get("name") or f"Draft {i + 1}")
-            for i, item in enumerate(draft_items)
-        ]
-        try:
-            draft_index = int(st.selectbox("Draft to publish", draft_labels))
-        except (TypeError, ValueError):
-            draft_index = 0
-        if draft_index < 0 or draft_index >= len(draft_items):
-            draft_index = 0
-        if st.button("Publish draft"):
-            selected = draft_items[draft_index]
-            work_id = (selected or {}).get("id") or (selected or {}).get("courseWorkId")
-            published = False
-            try:
-                for _name in ("publish_course_work", "publish_course_work_draft", "publish_draft", "release_draft", "publish"):
-                    _fn = getattr(service, _name, None)
-                    if not callable(_fn):
-                        continue
-                    try:
-                        _fn(course.id, work_id)
-                    except TypeError:
-                        _fn(course_id=course.id, course_work_id=work_id)
-                    published = True
-                    break
-                if not published:
-                    _execute = getattr(service, "_execute", None)
-                    _classroom = getattr(service, "classroom", None)
-                    if callable(_execute) and _classroom is not None:
-                        _execute(
-                            _classroom.courses().courseWork().patch(
-                                courseId=course.id, id=work_id, updateMask="state", body={"state": "PUBLISHED"}
-                            ),
-                            "publish draft",
-                        )
-                        published = True
-            except Exception as exc:
-                st.error(f"Failed to publish draft: {exc}")
-                published = False
-            if published:
-                st.success("Draft published.")
-
-    rows = [
-        {
-            "Action": plan.action,
-            "Source": plan.source_title,
-            "Target": plan.target_title,
-            "Reason": plan.reason,
-        }
-        for plan in plans
-    ]
-    st.dataframe(rows)
-
-    if apply_requested:
-        rc = _run_migration_action(
-            service,
-            course,
-            tag=tag,
-            legacy_tags=DEFAULT_LEGACY_TAGS,
-            apply=True,
-            force=force,
-            assume_yes=True,
-        )
-        if rc == 0:
-            st.success("Migration applied.")
-        else:
-            st.error("Migration failed.")
+    if not draft_items:
+        st.info("No draft assignments found for this course.")
         return
 
-    st.info("Dry run only - no drafts were created.")
+    draft_labels = [
+        str((item or {}).get("title") or (item or {}).get("name") or f"Draft {i + 1}")
+        for i, item in enumerate(draft_items)
+    ]
+    try:
+        draft_index = int(st.selectbox("Draft to publish", draft_labels))
+    except (TypeError, ValueError):
+        draft_index = 0
+    if draft_index < 0 or draft_index >= len(draft_items):
+        draft_index = 0
 
-
+    if st.button("Publish draft"):
+        selected = draft_items[draft_index]
+        work_id = (selected or {}).get("id") or (selected or {}).get("courseWorkId")
+        published = False
+        try:
+            for _name in ("publish_course_work", "publish_course_work_draft", "publish_draft", "release_draft", "publish"):
+                _fn = getattr(service, _name, None)
+                if not callable(_fn):
+                    continue
+                try:
+                    _fn(course.id, work_id)
+                except TypeError:
+                    _fn(course_id=course.id, course_work_id=work_id)
+                published = True
+                break
+            if not published:
+                _execute = getattr(service, "_execute", None)
+                _classroom = getattr(service, "classroom", None)
+                if callable(_execute) and _classroom is not None:
+                    _execute(
+                        _classroom.courses().courseWork().patch(
+                            courseId=course.id, id=work_id, updateMask="state", body={"state": "PUBLISHED"}
+                        ),
+                        "publish draft",
+                    )
+                    published = True
+        except Exception as exc:
+            st.error(f"Failed to publish draft: {exc}")
+            published = False
+        if published:
+            st.success("Draft published.")
 render_release_new_assignment_tab = render_migrate_tab
 render_migrate_assignments_tab = render_migrate_tab
 render_migration_tab = render_migrate_tab
