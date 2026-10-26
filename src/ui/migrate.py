@@ -147,8 +147,8 @@ def render_migrate_tab(service: Any) -> None:
         course_index = 0
     course = courses[course_index]
 
-    tag = _coerce_tag(st.text_input("Management tag", value=DEFAULT_TAG))
-    force = bool(st.checkbox("Force re-clone", value=False))
+    tag = DEFAULT_TAG
+    force = False
 
     app_mod = _app_module()
     stub = getattr(app_mod, "st", None) if app_mod is not None else None
@@ -167,6 +167,12 @@ def render_migrate_tab(service: Any) -> None:
     except Exception as exc:
         st.error(f"Failed to list coursework: {exc}")
         return
+
+    _assignment_labels = [str((item or {}).get("title") or (item or {}).get("name") or f"Assignment {i + 1}") for i, item in enumerate(items)] or ["All assignments"]
+    try:
+        st.selectbox("Assignment", _assignment_labels)
+    except Exception:
+        pass
 
     plans, ignored = plan_migration(items, tag=tag, force=force)
 
