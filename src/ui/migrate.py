@@ -106,24 +106,6 @@ def _course_label(course: Any) -> str:
     return str(name)
 
 
-def _trigger_apply_from_stub(stub: Any, checkbox_value: bool) -> bool:
-    if checkbox_value:
-        return True
-    messages = getattr(stub, "messages", None)
-    if isinstance(messages, list):
-        for message in messages:
-            text = str(message).lower()
-            if any(token in text for token in ("apply", "release", "create", "clone")):
-                return True
-    for attr in ("buttons", "button_keys"):
-        values = getattr(stub, attr, None)
-        if isinstance(values, (set, tuple, list)):
-            for value in values:
-                text = str(value).lower()
-                if any(token in text for token in ("apply", "release", "create", "clone")):
-                    return True
-    return False
-
 
 def render_migrate_tab(service: Any) -> None:
     st.title("Migrate Assignments (System Owner)")
@@ -150,17 +132,7 @@ def render_migrate_tab(service: Any) -> None:
     tag = DEFAULT_TAG
     force = False
 
-    app_mod = _app_module()
-    stub = getattr(app_mod, "st", None) if app_mod is not None else None
-    if stub is None:
-        stub = st
-
-    checkbox_value = getattr(stub, "checkbox_value", False)
-    apply_requested = _trigger_apply_from_stub(stub, bool(checkbox_value))
-
-    for _apply_label in ("Apply migration", "Apply", "Release", "Create drafts", "Migrate", "Run migration", "Run"):
-        if st.button(_apply_label):
-            apply_requested = True
+    apply_requested = st.button("Apply migration")
 
     try:
         items = list(service.list_course_work_items(course.id) or [])
@@ -236,11 +208,7 @@ def render_migrate_tab(service: Any) -> None:
     st.dataframe(rows)
 
     if apply_requested:
-        _runner = _run_migration_action
-        app_mod = _app_module()
-        if app_mod is not None and callable(getattr(app_mod, "_run_migration_action", None)):
-            _runner = app_mod._run_migration_action
-        rc = _runner(
+        rc = _run_migration_action(
             service,
             course,
             tag=tag,
