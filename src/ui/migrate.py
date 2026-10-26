@@ -107,6 +107,7 @@ def _course_label(course: Any) -> str:
 
 
 
+
 def render_migrate_tab(service: Any) -> None:
     st.title("Migrate Assignments (System Owner)")
 
@@ -154,37 +155,68 @@ def render_migrate_tab(service: Any) -> None:
     if draft_index < 0 or draft_index >= len(draft_items):
         draft_index = 0
 
+    selected = draft_items[draft_index]
+    work_id = (selected or {}).get("id") or (selected or {}).get("courseWorkId")
+
+    st.markdown("---")
+    st.subheader("Publish settings")
+
+    due_date = st.date_input("Due date", value=None, help="Optional due date for the assignment")
+    due_time = st.time_input("Due time", value=None, help="Optional due time")
+    max_points = st.number_input("Max points", min_value=0, value=0, step=1, help="Maximum score for the assignment")
+    make_copy = st.checkbox("Give each student a copy of attachments", value=False, help="When on, every student gets their own copy of any attached files")
+
     if st.button("Publish draft"):
-        selected = draft_items[draft_index]
-        work_id = (selected or {}).get("id") or (selected or {}).get("courseWorkId")
-        published = False
+        body = {"state": "PUBLISHED"}
+        mask_parts = ["state"]
+
+        if due_date is not None:
+            body["dueDate"] = {"year": due_date.year, "month": due_date.month, "day": due_date.day}
+            mask_parts.append("dueDate")
+        if due_time is not None:
+            body["dueTime"] = {"hours": due_time.hour, "minutes": due_time.minute}
+            mask_parts.append("dueTime")
+        if max_points and max_points > 0:
+            body["maxPoints"] = int(max_points)
+            mask_parts.append("maxPoints")
+
+        if make_copy:
+            materials = (selected or {}).get("materials") or []
+            updated_materials = []
+            for mat in materials:
+                mat = dict(mat)
+                drive = mat.get("driveFile") or {}
+                link = mat.get("link") or {}
+                if drive or link:
+                    mat["shareMode"] = "STUDENT_COPY"
+                updated_materials.append(mat)
+            if updated_materials:
+                body["materials"] = updated_materials
+                mask_parts.append("materials")
+
         try:
-            for _name in ("publish_course_work", "publish_course_work_draft", "publish_draft", "release_draft", "publish"):
-                _fn = getattr(service, _name, None)
-                if not callable(_fn):
-                    continue
-                try:
-                    _fn(course.id, work_id)
-                except TypeError:
-                    _fn(course_id=course.id, course_work_id=work_id)
-                published = True
-                break
-            if not published:
-                _execute = getattr(service, "_execute", None)
-                _classroom = getattr(service, "classroom", None)
-                if callable(_execute) and _classroom is not None:
-                    _execute(
-                        _classroom.courses().courseWork().patch(
-                            courseId=course.id, id=work_id, updateMask="state", body={"state": "PUBLISHED"}
-                        ),
-                        "publish draft",
-                    )
-                    published = True
+            _execute = getattr(service, "_execute", None)
+            _classroom = getattr(service, "classroom", None)
+            if callable(_execute) and _classroom is not None:
+                _execute(
+                    _classroom.courses().courseWork().patch(
+                        courseId=course.id, id=work_id,
+                        updateMask=",".join(mask_parts), body=body
+                    ),
+                    "publish draft with settings",
+                )
+            else:
+                for _name in ("publish_course_work", "publish_course_work_draft", "publish_draft", "release_draft", "publish"):
+                    _fn = getattr(service, _name, None)
+                    if callable(_fn):
+                        try:
+                            _fn(course.id, work_id)
+                        except TypeError:
+                            _fn(course_id=course.id, course_work_id=work_id)
+                        break
+            st.success("Draft published.")
         except Exception as exc:
             st.error(f"Failed to publish draft: {exc}")
-            published = False
-        if published:
-            st.success("Draft published.")
 render_release_new_assignment_tab = render_migrate_tab
 render_migrate_assignments_tab = render_migrate_tab
 render_migration_tab = render_migrate_tab
