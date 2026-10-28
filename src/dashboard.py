@@ -37,6 +37,8 @@ from typing import Any, Final, Optional
 import pandas as pd
 
 from config.settings import settings
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 from src.classroom_service import (
     PENDING_SUBMISSION_STATE,
     ClassroomServiceError,
@@ -277,6 +279,39 @@ def collect_pending_submissions(
             pending = tuple(
                 reader.get_pending_submissions(course.id, assignment.id)
             )
+            # Never surface submissions the teacher asked to ignore: a stuck
+            # TURNED_IN hand-in that cannot be returned stays in Classroom but
+            # leaves the dashboard's "awaiting review" groups, counters and
+            # dry-run entirely.
+            # Load ignored submission IDs from both the settings (secrets/env) and
+            # the committed ignore list file, so the list works even when secrets
+            # are misconfigured on Streamlit Cloud.
+            ignored: set[str] = set(settings.ignored_submission_ids)
+            _ignore_file = PROJECT_ROOT / "config" / "ignored_submissions.txt"
+            try:
+                if _ignore_file.exists():
+                    for _line in _ignore_file.read_text(encoding="utf-8").splitlines():
+                        _line = _line.strip()
+                        if _line and not _line.startswith("#"):
+                            ignored.add(_line)
+            except Exception:  # noqa: BLE001
+                pass
+            if ignored:
+                logger.info("Dashboard ignoring submission IDs: %s", ignored)
+                kept = tuple(
+                    submission
+                    for submission in pending
+                    if submission.submission_id not in ignored
+                )
+                dropped = len(pending) - len(kept)
+                if dropped:
+                    logger.info(
+                        "Dashboard hid %d ignored submission(s) for %s / %s",
+                        dropped,
+                        course.name,
+                        assignment.title,
+                    )
+                pending = kept
             if not pending:
                 continue
             if on_progress:

@@ -256,6 +256,30 @@ class Settings(BaseModel):
             "It never writes to Google Classroom either way."
         ),
     )
+    dashboard_ignored_submission_ids: str = Field(
+        default="",
+        description=(
+            "Comma-separated list of Classroom submission ids that the "
+            "Dashboard must never show as pending "
+            "(DASHBOARD_IGNORED_SUBMISSION_IDS). Use it to hide a submission "
+            "that is stuck in TURNED_IN and cannot be returned - it stays in "
+            "Google Classroom but disappears from the dashboard's \"awaiting "
+            "review\" groups, the pending counters and the automated dry-run."
+        ),
+    )
+
+    @property
+    def ignored_submission_ids(self) -> frozenset[str]:
+        """Submission ids the Dashboard must hide from its pending groups.
+
+        Parsed from ``dashboard_ignored_submission_ids`` (a comma-separated
+        list). Empty when nothing is configured.
+        """
+        return frozenset(
+            sid.strip()
+            for sid in (self.dashboard_ignored_submission_ids or "").split(",")
+            if sid.strip()
+        )
 
 
 def load_settings() -> Settings:
@@ -290,6 +314,10 @@ def load_settings() -> Settings:
         dashboard_auto_dry_run=_env_bool(
             "DASHBOARD_AUTO_DRY_RUN", default=False
         ),
+        dashboard_ignored_submission_ids=_secret(
+            "DASHBOARD_IGNORED_SUBMISSION_IDS"
+        )
+        or "",
         llm_audit_enabled=_env_bool("LLM_AUDIT_ENABLED", default=True),
         llm_audit_autofix=_env_bool("LLM_AUDIT_AUTOFIX", default=True),
     )

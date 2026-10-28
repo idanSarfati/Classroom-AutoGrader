@@ -1,0 +1,7 @@
+# Submissions the teacher wants to hide from the dashboard's "awaiting review"
+# groups, counters and dry-run. One submission ID per line. This file is the
+# source of truth for the ignore list - it is committed to the repo and always
+# available, independent of Streamlit secrets / environment variables.
+#
+# Tala Salty - assignment 1.2 | הגשת משימות (פייתון א' - ח6)
+Cg4I5_-GlYAaEKH7nsXxGQ

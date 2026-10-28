@@ -188,7 +188,10 @@ def render_migrate_tab(service: Any) -> None:
                 drive = mat.get("driveFile") or {}
                 link = mat.get("link") or {}
                 if drive or link:
-                    mat["shareMode"] = "STUDENT_COPY"
+                    # shareMode is not a valid field on CourseWorkMaterial;
+                    # Google Classroom rejects it with a 400. Per-student copy
+                    # cannot be set via the patch endpoint; skip it.
+                    pass
                 updated_materials.append(mat)
             if updated_materials:
                 body["materials"] = updated_materials

@@ -28,6 +28,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import src.dashboard as dashboard  # noqa: E402
+from config.settings import settings  # noqa: E402
 from src.classroom_service import ClassroomServiceError  # noqa: E402
 from src.dashboard import (  # noqa: E402
     CLASSROOM_WRITE_METHODS,
@@ -303,6 +304,64 @@ def test_pending_submissions_are_grouped_by_assignment() -> None:
     assert [row["Student"] for row in pending_rows(group)] == ["Noa", "Yael"]
     # The already-returned student must not appear anywhere.
     assert "Dana" not in [row["Student"] for row in pending_rows(group)]
+
+
+def test_ignored_submission_ids_are_hidden_from_pending_groups() -> None:
+    """A submission in DASHBOARD_IGNORED_SUBMISSION_IDS never shows as
+    awaiting review, while its classmates still do."""
+    course = make_course()
+    work = make_work("w1", title="lesson_1")
+    service = FakeClassroomService(
+        courses=(course,),
+        works={"c1": [work]},
+        submissions={
+            "w1": [
+                make_submission("u1", "Noa", state="TURNED_IN"),
+                make_submission("u2", "Tala Salty", state="TURNED_IN"),
+                make_submission("u3", "Yael", state="TURNED_IN"),
+            ],
+        },
+    )
+    previous = settings.dashboard_ignored_submission_ids
+    settings.dashboard_ignored_submission_ids = "sub-u2"  # Tala Salty's submission
+    try:
+        groups = collect_pending_submissions(service)
+    finally:
+        settings.dashboard_ignored_submission_ids = previous
+
+    assert [group.assignment.id for group in groups] == ["w1"]
+    group = groups[0]
+    # Tala Salty is hidden; Noa and Yael still await review.
+    assert group.count == 2
+    assert [row["Student"] for row in pending_rows(group)] == ["Noa", "Yael"]
+    assert "Tala Salty" not in [
+        row["Student"] for row in pending_rows(group)
+    ]
+
+
+def test_ignoring_all_submissions_omits_the_assignment_group() -> None:
+    """When every submission of an assignment is ignored, the whole group
+    disappears (an empty section would bury the ones needing attention)."""
+    course = make_course()
+    work = make_work("w1", title="lesson_1")
+    service = FakeClassroomService(
+        courses=(course,),
+        works={"c1": [work]},
+        submissions={
+            "w1": [
+                make_submission("u1", "Noa", state="TURNED_IN"),
+                make_submission("u2", "Tala Salty", state="TURNED_IN"),
+            ],
+        },
+    )
+    previous = settings.dashboard_ignored_submission_ids
+    settings.dashboard_ignored_submission_ids = "sub-u1,sub-u2"
+    try:
+        groups = collect_pending_submissions(service)
+    finally:
+        settings.dashboard_ignored_submission_ids = previous
+
+    assert groups == [], "an assignment whose every submission is ignored is omitted"
 
 
 def test_assignments_with_nothing_pending_are_omitted() -> None:
