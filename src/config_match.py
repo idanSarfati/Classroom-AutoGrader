@@ -181,10 +181,25 @@ def suggest_config_for_assignment(
     best_path: Optional[Path] = None
     best_score = 0.0
     best_reason = ""
+    best_tiebreak = (-1, -1)
     for config_path in config_files:
         score, reason = score_config_for_assignment(config_path, assignment_title)
-        if score > best_score:
+        # Tie-break (only matters when scores are equal): prefer the rubric whose
+        # stem carries the same leading lesson number as the assignment title
+        # (e.g. "3.3 | ..." -> lesson_3_* over lesson_2_* whose title merely
+        # mentions "(3.3)"), then the one with more shared content words.
+        assignment_numbers = re.findall(r"\d+", assignment_title or "")
+        leading = assignment_numbers[0] if assignment_numbers else None
+        stem_numbers = re.findall(r"\d+", config_path.stem)
+        lesson_match = 1 if (leading is not None and leading in stem_numbers) else 0
+        shared_words = len(
+            text_tokens(f"{config_path.stem} {read_rubric_title(config_path)[0]}")
+            & text_tokens(assignment_title or "")
+        )
+        tiebreak = (lesson_match, shared_words)
+        if score > best_score or (score == best_score and tiebreak > best_tiebreak):
             best_path, best_score, best_reason = config_path, score, reason
+            best_tiebreak = tiebreak
     return best_path, best_score, best_reason
 
 
