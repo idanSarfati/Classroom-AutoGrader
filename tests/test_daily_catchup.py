@@ -206,14 +206,14 @@ def test_tab_warns_and_offers_catchup_when_today_missing(app_module, monkeypatch
     mod.render_daily_reports_tab()
 
     assert any(m.startswith("warning:") and "No daily report for" in m for m in stub.messages)
-    # Daily check temporarily disabled: the catch-up button must not be rendered.
-    assert not any("button:🚀 Run today's read-only check now" in m for m in stub.messages)
+    # Daily check re-enabled: the manual catch-up button is rendered.
+    assert any("button:🚀 Run today's read-only check now" in m for m in stub.messages)
 
 
 def test_tab_catchup_button_triggers_the_check(app_module, monkeypatch):
     mod, stub = app_module
-    # Daily check temporarily disabled: the button no longer exists, so
-    # rendering the tab must not attempt to trigger a catch-up run.
+    # Click the catch-up button in this run.
+    stub.buttons.add("🚀 Run today's read-only check now")
     older = _fake_meta("2026-10-12_06-00-00")
     monkeypatch.setattr(mod, "list_daily_reports", lambda *a, **k: [older])
     monkeypatch.setattr(mod, "load_daily_report", lambda p: _fake_detail())
@@ -226,7 +226,7 @@ def test_tab_catchup_button_triggers_the_check(app_module, monkeypatch):
 
     mod.render_daily_reports_tab()
 
-    assert launched == []
+    assert launched == [{}]
 
 
 def test_tab_has_no_warning_when_report_is_fresh(app_module, monkeypatch):

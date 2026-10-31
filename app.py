@@ -196,10 +196,8 @@ def main() -> None:
     # brief pause never looks like a frozen app.
     _register_retry_notifier()
 
-    # DAILY CHECK TEMPORARILY DISABLED (re-enable by restoring the call below).
-    # The 06:00 Windows scheduled task has been unregistered, and this startup
-    # catch-up is intentionally skipped until you ask to turn it back on.
-    # _ensure_today_report_catchup()
+    # Daily check enabled: startup catch-up ensures today's report exists.
+    _ensure_today_report_catchup()
 
     with st.sidebar:
         st.caption("Google connection")
@@ -262,6 +260,7 @@ def main() -> None:
                     "(run `python src/auth.py`), then reload."
                 )
             return False
+        st.session_state.pop("_google_reconnect_button_rendered", None)
         return True
 
     tab0, tab1, tab2, tab3, tab4 = st.tabs(

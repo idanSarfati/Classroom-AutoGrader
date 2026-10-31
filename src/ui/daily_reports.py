@@ -139,16 +139,15 @@ def render_daily_reports_tab() -> None:
             "read-only check right now:",
             icon="⏳",
         )
-        # DAILY CHECK TEMPORARILY DISABLED - manual catch-up button hidden.
-        # Re-enable by restoring the st.button block below.
-        # if st.button("🚀 Run today's read-only check now", key="daily_reports_catchup"):
-        #     ok, status = trigger_daily_check_catchup()
-        #     (st.success if ok else st.error)(status)
-        #     if ok:
-        #         st.caption("The scan runs in the background; refresh in a minute to see today's report.")
-        # elif _CATCHUP_STATE["attempted"] and _CATCHUP_STATE["status"]:
-        #     # Surface what the automatic startup catch-up did (once per process).
-        #     st.caption(f"Automatic catch-up: {_CATCHUP_STATE['status']}")
+        # Manual catch-up button (re-enabled).
+        if st.button("🚀 Run today's read-only check now", key="daily_reports_catchup"):
+            ok, status = trigger_daily_check_catchup()
+            (st.success if ok else st.error)(status)
+            if ok:
+                st.caption("The scan runs in the background; refresh in a minute to see today's report.")
+        elif _CATCHUP_STATE["attempted"] and _CATCHUP_STATE["status"]:
+            # Surface what the automatic startup catch-up did (once per process).
+            st.caption(f"Automatic catch-up: {_CATCHUP_STATE['status']}")
     if not metas:
         st.info(
             "No daily reports yet. Run `python -m src.daily_check --once` once, "

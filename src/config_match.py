@@ -92,6 +92,9 @@ def score_config_for_assignment(
     config_path: Path, assignment_title: str
 ) -> tuple[float, str]:
     """Score a rubric file against a Classroom assignment title (0..1 + reason)."""
+    # Classroom draft titles carry a trailing "[Auto]" marker that is not part
+    # of the assignment's identity; strip it so it cannot dilute token overlap.
+    assignment_title = re.sub(r"\[[^\]]*\]", "", assignment_title or "").strip()
     assignment_norm = normalize_text(assignment_title)
     stem = config_path.stem  # e.g. lesson_2_worksheet
     stem_norm = normalize_text(stem)

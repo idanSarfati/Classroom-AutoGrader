@@ -1,0 +1,46 @@
+{
+  "assignment_id": "lesson_3_worksheet",
+  "title": "שיעור 3 | תרגול לפיצוח | דף עבודה - פקודת קלט",
+  "tasks": [
+    {
+      "id": 1,
+      "name": "Exercise 1 - output trace with end",
+      "description": "Trace the given code and complete the table of num values and output for different inputs."
+    },
+    {
+      "id": 2,
+      "name": "Exercise 2 - circumference and area",
+      "description": "Complete and write programs calculating circle circumference/area, triangle perimeter, and square perimeter/area."
+    },
+    {
+      "id": 3,
+      "name": "Exercise 3 - average grade trace",
+      "description": "Trace the given code and complete the table of grade1, grade2, grade3 and average for different inputs."
+    },
+    {
+      "id": 4,
+      "name": "Exercise 4 - shirts total payment",
+      "description": "Complete the code reading number of shirts at 15 NIS each and printing total payment."
+    },
+    {
+      "id": 5,
+      "name": "Exercise 5 - three games total and change",
+      "description": "Write a program reading three game prices, computing total and change from 100 NIS."
+    },
+    {
+      "id": 6,
+      "name": "Exercise 6 - book registration",
+      "description": "Write a program reading details of 3 books and printing a summary."
+    },
+    {
+      "id": 7,
+      "name": "Exercise 7 - airline passenger registration",
+      "description": "Write a program reading details of at least 2 passengers and printing a summary."
+    },
+    {
+      "id": 8,
+      "name": "Exercise 8 - comic store invoice",
+      "description": "Write a program reading purchase details and printing an invoice without credit card details."
+    }
+  ]
+}

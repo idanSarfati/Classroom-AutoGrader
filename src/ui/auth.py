@@ -57,10 +57,14 @@ def _render_google_auth_error(exc: BaseException) -> None:
     )
     with st.expander("Technical details"):
         st.code(f"{type(exc).__name__}: {exc}")
-    if st.button("🔄 Reconnect Google", key=f"reconnect_{id(exc)}"):
-        _cached_classroom_service.clear()
-        _clear_google_caches()
-        st.rerun()
+    # The auth error is rendered for every Google-backed tab, so guard the button
+    # with a session flag to avoid StreamlitDuplicateElementKey.
+    if not st.session_state.get("_google_reconnect_button_rendered", False):
+        st.session_state["_google_reconnect_button_rendered"] = True
+        if st.button("🔄 Reconnect Google", key="reconnect_google"):
+            _cached_classroom_service.clear()
+            _clear_google_caches()
+            st.rerun()
 
 
 def _clear_google_caches() -> None:
