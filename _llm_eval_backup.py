@@ -277,7 +277,7 @@ Grading Philosophy & Scoring (Target 90-95 for good work):
 - Default to encouragement. Hard floor score: 60 (unless empty/spam).
 - Deduction Sizing: A minor gap costs 2-5 points TOTAL for the whole assignment (e.g., printing sum instead of type, hardcoding literal strings, missing one print). A good submission with such a gap scores 93-98.
 - Score bands: 95-100 (complete), 90-95 (minor gaps, 2-5 pts each), 80-85 (substantial missing parts), 70-79 (several gaps), 60-69 (genuine attempt, little works), <60 (empty/spam).
-- Link Submissions: Treat links (Drive, GitHub, Replit) as valid, full-attempt evidence. NEVER dock points for using a link.
+- Link Submissions: An external link is NOT code. If the student's answer consists only of a link (no pasted code), award NO grade (empty score) and ask the student to write/paste the actual code instead of a link. Never treat a link alone as a correct answer.
 
 Typos & Formatting (0 point penalty):
 - Intent over keystrokes. `pint` instead of `print`, curly quotes, stray underscores (`_bob_____`), spacing, case errors -> 0 points deducted, status CORRECT. Mention at most one typo as a friendly heads-up.

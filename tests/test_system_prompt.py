@@ -37,19 +37,20 @@ LINK_REMINDER_HE = (
 )
 
 
-def test_link_submissions_earn_full_credit() -> None:
+def test_link_submissions_get_no_credit() -> None:
     assert "Link Submissions:" in SYSTEM_PROMPT
-    assert "valid, full-attempt evidence" in SYSTEM_PROMPT
-    assert "NEVER dock points" in SYSTEM_PROMPT
+    assert "An external link is NOT code" in SYSTEM_PROMPT
+    assert "NO grade" in SYSTEM_PROMPT
+    assert "write/paste the actual code" in SYSTEM_PROMPT
 
 
 def test_link_grading_section_is_present() -> None:
-    assert "- Link Submissions: Treat links (Drive, GitHub, Replit)" in SYSTEM_PROMPT
+    assert "- Link Submissions: An external link is NOT code" in SYSTEM_PROMPT
     # The model must not pretend it can open the link: it may only judge what
     # is actually written in the student's document.
     assert "Base evidence ONLY on the document text" in SYSTEM_PROMPT
-    # A link-only document is still graded in the generous range.
-    assert "valid, full-attempt evidence" in SYSTEM_PROMPT
+    # A link-only document receives no grade.
+    assert "NO grade" in SYSTEM_PROMPT
 
 
 def test_hebrew_link_reminder_is_verbatim() -> None:
