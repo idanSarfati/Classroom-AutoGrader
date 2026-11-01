@@ -154,7 +154,7 @@ def test_startup_catchup_runs_once_per_process(app_module, monkeypatch):
 
     assert mod._ensure_today_report_catchup() == (True, "started")
     assert mod._ensure_today_report_catchup() == (True, "started")
-    assert calls == [{"allow_direct_run": False}], "second call must reuse the recorded state"
+    assert calls == [{"allow_direct_run": True}], "second call must reuse the recorded state"
 
 
 def test_startup_catchup_silent_when_report_exists(app_module, monkeypatch):

@@ -97,12 +97,11 @@ def trigger_daily_check_catchup(allow_direct_run: bool = True) -> tuple:
     ``python -m src.daily_check``. Returns ``(ok, message)``; never raises -
     a broken catch-up must not take the dashboard down.
 
-    ``allow_direct_run=False`` is used by the *automatic* startup check: the
-    scheduled task is safe to poke (idempotent, read-only, registered by
-    ``Register-DailyCheckTask.ps1``), but quietly spawning Google-scanning
-    processes on hosts without that task (e.g. Streamlit Community Cloud)
-    would waste API quota on every server boot, so the automatic path stops
-    after schtasks and leaves the explicit button as the manual fallback.
+    ``allow_direct_run=True`` is used by the *automatic* startup check: on hosts
+    with the registered scheduled task (local Windows) schtasks runs the scan;
+    on hosts without it (e.g. Streamlit Community Cloud) the check falls back to
+    a detached ``python -m src.daily_check`` so today's report is still produced
+    automatically. Returns the recorded ``(ok, status message)``; never raises.
     """
     try:
         if has_report_for_today():
@@ -123,10 +122,10 @@ def trigger_daily_check_catchup(allow_direct_run: bool = True) -> tuple:
 
 def _ensure_today_report_catchup() -> tuple:
     """Startup freshness check: trigger the fallback at most once per server
-    process when today's report is missing (e.g. the machine was powered off
-    at 06:00 and StartWhenAvailable has not fired yet). Only pokes the
-    registered scheduled task - never spawns extra scans by itself. Returns
-    the recorded ``(ok, status message)``; never raises.
+    process when today's report is missing. Prefers the registered scheduled
+    task (local Windows); on hosts without it (e.g. Streamlit Community Cloud)
+    falls back to a detached ``python -m src.daily_check``. Returns the
+    recorded ``(ok, status message)``; never raises.
     """
     state = _CATCHUP_STATE
     if state["attempted"]:
@@ -137,7 +136,7 @@ def _ensure_today_report_catchup() -> tuple:
             state["ok"], state["status"] = True, ""
         else:
             state["ok"], state["status"] = trigger_daily_check_catchup(
-                allow_direct_run=False
+                allow_direct_run=True
             )
             logger.info("Daily report missing for today; catch-up: %s", state["status"])
     except Exception as exc:  # noqa: BLE001 - startup must never crash the UI
