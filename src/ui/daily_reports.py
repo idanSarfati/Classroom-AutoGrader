@@ -210,35 +210,12 @@ def render_daily_reports_tab() -> None:
     else:
         st.success("🎉 No pending submissions in this run — all handed back.")
 
-    st.markdown("#### 📚 All assignments (submission states)")
-    course_names = ["All courses"] + sorted({r["Course"] for r in detail.assignment_rows if r["Course"]})
-    picked = st.selectbox("Course filter", course_names, key="daily_reports_course")
-    rows = detail.assignment_rows
-    if picked != "All courses":
-        rows = [r for r in rows if r["Course"] == picked]
-    only_pending = st.checkbox("Show only assignments with pending work", value=False, key="daily_reports_only_pending")
-    if only_pending:
-        rows = [r for r in rows if r["Pending"]]
-    if rows:
-        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-    else:
-        st.info("No assignments match this filter.")
-
     _render_daily_audit_section(detail)
 
     if detail.errors:
         with st.expander(f"⚠️ Warnings/errors ({len(detail.errors)})"):
             for message in detail.errors:
                 st.write(f"- {message}")
-
-    if detail.summary_path is not None:
-        try:
-            summary_text = detail.summary_path.read_text(encoding="utf-8")
-        except OSError:
-            summary_text = ""
-        if summary_text.strip():
-            with st.expander("📄 Raw summary.txt"):
-                st.code(summary_text, language="text")
 
 def _render_daily_audit_section(detail) -> None:
     """Show this run's grade-audit verdicts: what needs a human, and why.
@@ -312,15 +289,6 @@ def _render_daily_audit_section(detail) -> None:
                 f"`{flag}` × {count}" for flag, count in systemic.items()
             )
         )
-
-    if detail.summary_path is not None:
-        try:
-            summary_text = detail.summary_path.read_text(encoding="utf-8")
-        except OSError:
-            summary_text = ""
-        if summary_text.strip():
-            with st.expander("📄 Raw summary.txt"):
-                st.code(summary_text, language="text")
 
 # ----------------------------------------------------------------------
 # Seam wiring
