@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{# The exam is handed in and marked, but the teacher decides when the result
+   becomes visible. This page confirms the hand-in and, once released, shows
+   the number - never the paper, so a class sitting later cannot learn it. #}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted">{{ group.name }}</p>
+  </div>
+  <span class="badge badge-published">הוגש</span>
+</section>
+
+<section class="card exam-card" id="submitted" aria-label="הגשת המבחן">
+  <div class="section-head">
+    <h2>המבחן הוגש</h2>
+    {% if submission %}
+    <span class="muted small">הוגש {{ submission.submitted_at|local_dt }}</span>
+    {% endif %}
+  </div>
+  <ul class="exam-facts">
+    <li><strong>{{ exam_version_label }}</strong></li>
+    <li><strong>{{ exam_total_points }}</strong> נקודות</li>
+    <li>הגשה אחת בלבד</li>
+  </ul>
+
+  {% if exam_release == 'held' %}
+  <p class="notice-inline">
+    ההגשה נקלטה. הציון והפירוט יפורסמו על ידי המורה - אין צורך לעשות
+    דבר נוסף, ואפשר לחזור לעמוד הזה אחרי הפרסום.
+  </p>
+  {% elif grade_view %}
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ grade_view.score }}">
+      <span class="score-number">{{ grade_view.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      {% set disq = grade_view.disqualification %}
+      {% include "_disqualification_notice.html" %}
+      <p class="feedback-text">הציון שפורסם.</p>
+      <p class="muted">
+        המורה פרסמה את הציון בלבד. הפירוט ודף המבחן יופיעו כאן רק אם
+        יפורסמו.
+      </p>
+    </div>
+  </div>
+  {% else %}
+  <p class="notice-inline">
+    הציון יופיע כאן ברגע שיהיה מוכן. אין צורך לעשות דבר נוסף.
+  </p>
+  {% endif %}
+</section>
+
+<p class="hint">
+  אי אפשר לשנות את התשובות או להגיש שוב. אם הייתה תקלה טכנית, פנו למורה.
+</p>
+<a class="button button-secondary" href="/student/classes/{{ group.id }}">
+  חזרה לכיתה
+</a>
+
+{% include "_exam_submitted_dialog.html" %}
+{% endblock %}

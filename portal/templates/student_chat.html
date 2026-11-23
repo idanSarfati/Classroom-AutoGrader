@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% import "_chat_macros.html" as chat_macros %}
+{% block title %}צ'אט · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>צ'אט</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>צ'אט עם המורה</h1>
+    <p class="muted">
+      כאן אפשר לשאול שאלות כלליות. לשאלה על משימה מסוימת, השתמשו בבועת
+      הצ'אט שבתוך דף המשימה — היא תציין אוטומטית על מה אתם שואלים.
+    </p>
+  </div>
+</section>
+
+{% if conversations %}
+<section class="card chat-layout" data-chat-page
+         data-peer-param="teacher"
+         data-active="{{ active_teacher if active_teacher else '' }}"
+         data-thread-url="/student/chat/thread"
+         data-send-url="/student/chat/send">
+  <aside class="chat-list" aria-label="השיחות שלי">
+    <ul class="chat-conversations">
+      {% for c in conversations %}
+      <li>
+        <a class="chat-conversation{{ ' is-active' if c.teacher_id == active_teacher else '' }}"
+           href="/student/chat?teacher={{ c.teacher_id }}">
+          <span class="chat-conversation-top">
+            <span class="chat-conversation-name">{{ c.name }}</span>
+            {% if c.unread %}<span class="nav-badge">{{ c.unread }}</span>{% endif %}
+          </span>
+          {% if c.last_body %}
+          <span class="chat-conversation-preview">{{ c.last_body }}</span>
+          {% else %}
+          <span class="chat-conversation-preview muted">התחילו שיחה</span>
+          {% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <div class="chat-main">
+    <header class="chat-main-head">
+      <h2>{{ active_name }}</h2>
+    </header>
+    {{ chat_macros.thread(messages) }}
+    {{ chat_macros.compose('/student/chat/send', 'teacher', active_teacher, csrf_token, max_message_chars) }}
+  </div>
+</section>
+{% else %}
+<section class="card empty-state">
+  <h2>אין עדיין שיחות</h2>
+  <p>כשתשויכו לכיתה, המורה שלה יופיע כאן ותוכלו לשלוח לו הודעה.</p>
+  <a class="button button-quiet" href="/student">חזרה ללימודים שלי</a>
+</section>
+{% endif %}
+{% endblock %}

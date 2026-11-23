@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}הכיתות שלי · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>הכיתות שלי</h1>
+    <p class="muted">ניהול כיתות, תלמידים ומטלות. כל הנתונים נשמרים בפורטל בלבד.</p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-secondary" href="/teacher/exam-auto-check">
+      בדיקה אוטומטית
+      {% if auto_check_pending %}<span class="count">{{ auto_check_pending }}</span>{% endif %}
+    </a>
+    <a class="button button-secondary" href="/teacher/lessons">
+      שיעורים <span class="count">{{ lesson_count }}</span>
+    </a>
+  </div>
+</div>
+
+{% if classes %}
+<section class="grid" aria-label="רשימת כיתות">
+  {% for group in classes %}
+  {% set stat = stats[group.id] %}
+  <a class="card class-card" href="/teacher/classes/{{ group.id }}">
+    <div class="class-card-top">
+      <h2>{{ group.name }}</h2>
+      <span class="code-chip" title="קוד הצטרפות">קוד: {{ group.code }}</span>
+    </div>
+    <dl class="stat-row">
+      <div><dt>תלמידים</dt><dd>{{ stat.students }}</dd></div>
+      <div><dt>מטלות</dt><dd>{{ stat.assignments }}</dd></div>
+      <div><dt>מפורסמות</dt><dd>{{ stat.published }}</dd></div>
+    </dl>
+    <span class="card-cta">ניהול הכיתה ←</span>
+  </a>
+  {% endfor %}
+</section>
+{% else %}
+<section class="card empty-state">
+  <h2>עוד אין כיתות</h2>
+  <p>אין כיתות משויכות לחשבון זה. פנו למנהל המערכת כדי לשייך כיתה.</p>
+</section>
+{% endif %}
+{% endblock %}

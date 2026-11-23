@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}הרחבת כיתות · {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>הרחבת כיתות</h1>
+    <p class="muted">
+      העתקת השיעורים והמטלות הקיימות לכל כיתות בית הספר, עם מצב פרסום
+      נפרד לכל כיתה. הפעולה בטוחה להרצה חוזרת ולא יוצרת כפילויות.
+    </p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-secondary" href="/teacher">חזרה לכיתות</a>
+  </div>
+</div>
+
+{% if error %}
+<section class="card empty-state" role="alert">
+  <h2>לא ניתן לבנות תכנית הרחבה</h2>
+  <p>{{ error }}</p>
+  <p class="muted">
+    הריצו סריקת Classroom מהמסך
+    <a href="/teacher/import">הוספת תוכן מכיתה</a>, ואז חזרו לעמוד הזה.
+  </p>
+</section>
+{% elif plan %}
+<section class="card sync-summary">
+  <div class="sync-summary-head">
+    <div>
+      <h2>התוכן שיועתק</h2>
+      <p class="muted">
+        {{ plan.source_lessons }} שיעורים ו-{{ plan.source_assignments }} מטלות
+        יועתקו לכל כיתה שתבחרו.
+      </p>
+    </div>
+    <span class="code-chip">
+      סריקת Classroom:
+      {% if plan.catalog_synced_at %}
+        {{ plan.catalog_synced_at | local_dt }}
+      {% else %}
+        אין סריקה
+      {% endif %}
+    </span>
+  </div>
+  {% if plan.catalog_error %}
+  <p class="form-error">{{ plan.catalog_error }}</p>
+  {% endif %}
+  <dl class="stat-row">
+    <div><dt>כיתות חדשות</dt><dd>{{ plan.classes_to_create }}</dd></div>
+    <div><dt>פריטים חדשים</dt><dd>{{ plan.items_to_create }}</dd></div>
+    <div><dt>יפורסמו</dt><dd>{{ plan.items_to_publish }}</dd></div>
+    <div><dt>כטיוטה</dt><dd>{{ plan.items_to_keep_draft }}</dd></div>
+  </dl>
+  <p class="muted sync-hint">
+    מצב ברירת המחדל "לפי Classroom" מפרסם פריט רק אם הוא מפורסם בקורס של
+    הכיתה הזו. פריט שהכיתה טרם הגיעה אליו נשאר כטיוטה. אפשר לשנות מצב לכל
+    כיתה בנפרד, ואחר כך לכוונן פריט בודד מהעמוד של הכיתה.
+  </p>
+</section>
+
+<form method="post" action="/teacher/sync-classes" class="sync-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="sync-list" role="list">
+    {% for item in plan.classes if not item.is_source %}
+    <section class="card sync-class" role="listitem">
+      <div class="sync-class-head">
+        <label class="sync-pick">
+          <input
+            type="checkbox"
+            name="target"
+            value="{{ item.token }}"
+            {% if not item.error %}checked{% endif %}
+            {% if item.error %}disabled{% endif %}>
+          <span class="sync-class-name">{{ item.display_name }}</span>
+        </label>
+        <div class="sync-badges">
+          {% if item.error %}
+          <span class="badge badge-danger">לא ניתן להריץ</span>
+          {% else %}
+          <span class="badge {{ 'badge-published' if item.class_exists else 'badge-draft' }}">
+            {{ 'כיתה קיימת' if item.class_exists else 'כיתה תיווצר' }}
+          </span>
+          <span class="badge {{ 'badge-published' if item.link_exists else 'badge-draft' }}">
+            {{ 'מקושרת ל-Classroom' if item.link_exists else 'קישור ייווצר' }}
+          </span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if item.error %}
+      <p class="form-error">{{ item.error }}</p>
+      {% else %}
+      <p class="sync-course">
+        קורס: <strong>{{ item.course_name }}</strong>
+        {% if item.link_will_update %}
+        <span class="badge badge-draft">הקישור הקיים יתעדכן</span>
+        {% endif %}
+      </p>
+
+      <label class="sync-mode">
+        <span>מצב פרסום לכיתה הזו</span>
+        <select name="mode_{{ item.token }}">
+          {% for mode in modes %}
+          <option value="{{ mode }}" {% if mode == 'classroom' %}selected{% endif %}>
+            {{ mode_labels[mode] }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <dl class="stat-row sync-stats">
+        <div><dt>שיעורים חדשים</dt><dd>{{ item.new_lessons }}</dd></div>
+        <div><dt>מטלות חדשות</dt><dd>{{ item.new_assignments }}</dd></div>
+        <div><dt>יפורסמו</dt><dd>{{ item.publish_count }}</dd></div>
+        <div><dt>כטיוטה</dt><dd>{{ item.draft_count }}</dd></div>
+      </dl>
+
+      {% for warning in item.warnings %}
+      <p class="sync-warning">{{ warning }}</p>
+      {% endfor %}
+
+      {% if item.items %}
+      <details class="sync-details">
+        <summary>פירוט {{ item.items | length }} פריטים</summary>
+        <ul class="sync-items">
+          {% for planned in item.items %}
+          <li>
+            <span class="badge {{ 'badge-published' if planned.desired_published else 'badge-draft' }}">
+              {{ planned.state_label }}
+            </span>
+            <span class="sync-item-title">{{ planned.title }}</span>
+            <span class="sync-item-meta">
+              {{ 'שיעור' if planned.kind == 'lesson' else 'מטלה' }} ·
+              {{ planned.action_label }}
+              {% if planned.classroom_state %}
+              · Classroom: {{ planned.classroom_state }}
+              {% endif %}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endif %}
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="sync-actions">
+    <button type="submit" class="button button-primary">ביצוע ההרחבה</button>
+    <p class="muted">
+      אפשר להריץ שוב בכל עת. פריטים קיימים לא ייעתקו פעמיים; רק מצב הפרסום
+      שלהם יתעדכן לפי הבחירה.
+    </p>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

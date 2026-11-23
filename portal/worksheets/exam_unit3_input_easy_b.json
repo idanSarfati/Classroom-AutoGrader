@@ -1,0 +1,270 @@
+{
+  "version": 1,
+  "rubric": "exam_unit3_input_easy_b",
+  "title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים - גרסה ב' (מקלה)",
+  "note": "ענו על כל השאלות. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "items": [
+    {
+      "key": "a1",
+      "number": 1,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "איזה טיפוס נתונים מחזירה פקודת הקלט input() לפני שמבצעים המרה?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["bool (בוליאני)", "str (מחרוזת)", "float (מספר עשרוני)", "int (מספר שלם)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a2",
+      "number": 2,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה יודפס? המשתמש הקליד 20.",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "x = int(input())\nprint(x + 5)",
+              "options": ["205", "25", "20 5", "שגיאה (TypeError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a3",
+      "number": 3,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "איזו שורה קולטת מספר עשרוני ושומרת אותו במשתנה price?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["price = input(float(\"Enter price: \"))", "price = float(input(\"Enter price: \"))", "price = input(\"Enter price:\").float()", "float price = input(\"Enter price:\")"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a4",
+      "number": 4,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה יקרה אם המשתמש יקליד 2.5?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "count = int(input(\"Enter count: \"))",
+              "options": ["המשתנה count יקבל את הערך 2", "המשתנה count יקבל את הערך 2.5", "תתרחש שגיאת המרה (ValueError)", "התוכנית תעגל את המספר ל-3"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a5",
+      "number": 5,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה יודפס? המשתמש הקליד 5 ואז 2.",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "a = input()\nb = input()\nprint(a + b)",
+              "options": ["7", "52", "5 2", "שגיאה (TypeError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a6",
+      "number": 6,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "איזו שורה קולטת מספר שלם ושומרת אותו במשתנה age?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["age = input(int(\"Enter age: \"))", "age = int(input(\"Enter age: \"))", "age = input(\"Enter age:\").int()", "int age = input(\"Enter age:\")"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a7",
+      "number": 7,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה יודפס? שימו לב לשתי פקודות ההדפסה.",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "print(\"A\", end=\"-\")\nprint(\"B\")",
+              "options": ["A-B (בשורה אחת)", "A ואז B בשתי שורות", "AB", "שגיאה (TypeError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a8",
+      "number": 8,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה יודפס? המשתמש הקליד 2010.",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "age = int(input())\nprint(2026 - age)",
+              "options": ["16", "2010", "20262010", "שגיאה (TypeError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a9",
+      "number": 9,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה תהיה התוצאה של float(\"2.5\")?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["המספר העשרוני 2.5", "הטקסט 2.5", "המספר השלם 2", "שגיאה (ValueError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a10",
+      "number": 10,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 7,
+      "title": "מה יודפס? המשתמש הקליד 8.",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "x = input()\nprint(x * 2)",
+              "options": ["16", "88", "8 8", "שגיאה (TypeError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "b1",
+      "number": 11,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 10,
+      "title": "מה יודפס למסך?",
+      "intro": "הנחה: המשתמש הקליד 7. כתבו את הפלט המדויק.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "num = int(input())\nprint(num + num)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן את שורת הפלט"
+        }
+      ]
+    },
+    {
+      "key": "b2",
+      "number": 12,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 10,
+      "title": "מה יודפס למסך?",
+      "intro": "הנחה: המשתמש הקליד 5 ואז 3. כתבו את הפלט המדויק.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "a = input()\nb = input()\nprint(a + b)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן את שורת הפלט"
+        }
+      ]
+    },
+    {
+      "key": "b3",
+      "number": 13,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 10,
+      "title": "מה יודפס למסך?",
+      "intro": "שימו לב לפרמטר end. כתבו את הפלט המדויק.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "print(\"Bye\", end=\"!\")",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן את שורת הפלט"
+        }
+      ]
+    }
+  ]
+}

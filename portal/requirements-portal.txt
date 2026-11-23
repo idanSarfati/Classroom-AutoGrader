@@ -1,0 +1,21 @@
+-r ../requirements.txt
+
+# Portal-only runtime dependencies (pinned to the versions verified in Phase 1).
+fastapi==0.162.2
+uvicorn==0.54.0
+SQLAlchemy==2.1.8
+Jinja2==3.1.6
+python-multipart==0.0.32
+itsdangerous==2.2.0
+argon2-cffi==25.1.0
+
+# Tests (pytest is already in requirements-dev.txt; pinned here for a
+# self-contained portal environment).
+pytest==9.1.1
+httpx==0.28.1
+
+# Phase 2.5 Classroom ingestion: HTML allowlist sanitizer and PDF->WebP
+# rendering for imported Google Slides decks.
+nh3==0.3.7
+pypdfium2==5.15.1
+Pillow==12.3.0

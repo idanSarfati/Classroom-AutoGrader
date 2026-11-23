@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}הלימודים שלי · {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1>שלום, {{ user.display_name }}</h1>
+    <p class="muted">השיעורים, המטלות וההוראות של הכיתות שלך נמצאים כאן.</p>
+  </div>
+  <a class="button button-quiet" href="/student/lessons">כל השיעורים</a>
+</section>
+
+<section class="card">
+  <h2>הצטרפות לכיתה</h2>
+  <form method="post" action="/student/join" class="row-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="sr-only" for="class-code">קוד כיתה</label>
+    <input id="class-code" name="code" type="text" maxlength="16" required
+           placeholder="קוד הכיתה שקיבלתם מהמורה"
+           dir="ltr" autocapitalize="characters" spellcheck="false">
+    <button type="submit" class="button button-primary">הצטרפות</button>
+  </form>
+</section>
+
+{% if global_lessons %}
+<section class="card" aria-label="שיעורים כלליים">
+  <div class="section-head">
+    <h2>שיעורים כלליים</h2>
+    <span class="count">{{ global_lessons|length }}</span>
+  </div>
+  <ul class="lesson-list">
+    {% for lesson in global_lessons %}
+    <li class="lesson-row">
+      <div class="lesson-main">
+        <div class="badge-row">
+          <span class="badge badge-lesson">שיעור</span>
+        </div>
+        <a class="lesson-link" href="/student/lessons/{{ lesson.id }}">{{ lesson.title }}</a>
+        <div class="meta muted">
+          {{ global_slide_counts.get(lesson.id, 0) }} שקופיות
+        </div>
+        {% if lesson.summary %}
+        <p class="clamp">{{ lesson.summary }}</p>
+        {% endif %}
+      </div>
+      <a class="button button-secondary" href="/student/lessons/{{ lesson.id }}">למידה</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if classes %}
+<section class="stack" aria-label="הכיתות שלי">
+  {% for group in classes %}
+  <article class="card">
+    <div class="section-head">
+      <h2>{{ group.name }}</h2>
+      <a class="button button-quiet" href="/student/classes/{{ group.id }}">כל הכיתה</a>
+    </div>
+
+    {% set topics = feeds[group.id] %}
+    {% if topics %}
+      {% for topic in topics %}
+      <section class="topic-block">
+        <div class="topic-head">
+          <h3>{{ topic.label }}</h3>
+          <span class="count">{{ topic.items|length }}</span>
+        </div>
+        <ul class="lesson-list">
+          {% for item in topic.items %}
+          <li class="lesson-row feed-row">
+            <div class="lesson-main">
+              <div class="badge-row">
+                <span class="badge {{ item.kind_badge }}">{{ item.kind_label }}</span>
+                {% if item.status_label %}
+                <span class="badge {{ item.status_badge }}">{{ item.status_label }}</span>
+                {% endif %}
+              </div>
+              <a class="lesson-link" href="{{ item.href }}">{{ item.title }}</a>
+              <div class="meta muted">
+                {% if item.kind == 'lesson' %}
+                {{ item.slide_count }} שקופיות
+                {% elif item.due_at %}
+                יעד: {{ item.due_at|local_dt }}
+                {% else %}
+                ללא תאריך יעד
+                {% endif %}
+              </div>
+            </div>
+            <a class="button button-secondary" href="{{ item.href }}">{{ item.action_label }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endfor %}
+    {% else %}
+    <p class="muted">אין תוכן מפורסם עדיין.</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<section class="card empty-state">
+  <h2>עוד לא רשומים לכיתה</h2>
+  <p>בקשו מהמורה קוד כיתה, והזינו אותו בטופס למעלה.</p>
+</section>
+{% endif %}
+{% endblock %}

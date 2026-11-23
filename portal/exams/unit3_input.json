@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "name": "unit3_input",
+  "title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים",
+  "instructions": "הבוחן בודק את יחידה 3: פקודת הקלט input, המרת טיפוסים (int, float), מעקב ריצה, תיקון שגיאות וכתיבת תוכנית מלאה. בכל גרסה 11 שאלות ב-100 נקודות. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "total_points": 100,
+  "shuffle_questions": true,
+  "shuffle_options": true,
+  "check_file": "checks/unit3_input.json",
+  "versions": [
+    {
+      "key": "a",
+      "label": "גרסה א'",
+      "worksheet": "exam_unit3_input_a",
+      "rubric": "assignments/exam_unit3_input_a.json"
+    },
+    {
+      "key": "b",
+      "label": "גרסה ב'",
+      "worksheet": "exam_unit3_input_b",
+      "rubric": "assignments/exam_unit3_input_b.json"
+    },
+    {
+      "key": "c",
+      "label": "גרסה ג'",
+      "worksheet": "exam_unit3_input_c",
+      "rubric": "assignments/exam_unit3_input_c.json"
+    }
+  ]
+}

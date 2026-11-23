@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "rubric": "exam_unit3_input_b",
+  "title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים - גרסה ב'",
+  "note": "ענו על כל השאלות. בדף הזה אין כפתור הרצה — קראו את הקוד וחשבו מה הוא עושה. אפשר להגיש פעם אחת בלבד.",
+  "items": [
+    {
+      "key": "a1",
+      "number": 1,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "איזה סוג מידע מוחזר תמיד אל תוך התוכנית כאשר המשתמש מקליד נתונים דרך פקודת input()?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["מספר שלם (int)", "מחרוזת טקסט (str)", "מספר עשרוני (float)", "טיפוס לוגי (bool)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a2",
+      "number": 2,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יהיה הפלט של קטע הקוד הבא אם המשתמש יקיש 10 ואז 4?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "x = input(\"Num 1: \")\ny = input(\"Num 2: \")\nprint(x + y)",
+              "options": ["14", "104", "10 4", "שגיאת קומפילציה"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a3",
+      "number": 3,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "כיצד יש לרשום קוד שקולט מהמשתמש מחיר של מוצר כמספר עשרוני ושומר אותו במשתנה price?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["price = float(input(\"Enter price: \"))", "price = input(float(\"Enter price: \"))", "price = input(\"Enter price:\").float()", "float price = input(\"Enter price:\")"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a4",
+      "number": 4,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יתרחש אם נריץ את השורה הבאה והמשתמש יקליד את המילה hello במקום ערך מספרי?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "price = float(input(\"Enter price: \"))",
+              "options": ["המשתנה יקבל את הערך 0", "המשתנה ישמור את הטקסט \"hello\"", "תתרחש שגיאת ערך (ValueError)", "פייתון תתעלם מהפקודה ותמשיך הלאה"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a5",
+      "number": 5,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מהי מטרתו של הפרמטר end בפקודת ההדפסה print בפייתון?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["לעצור את ריצת התוכנית מיד לאחר ההדפסה", "לקבוע מה יתווסף בסוף פלט ההדפסה במקום מעבר השורה האוטומטי", "לסיים את המחרוזת במרכאות כפולות", "למחוק את תוכן המסך לפני ההדפסה"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "b1",
+      "number": 6,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 12,
+      "title": "מה יודפס למסך?",
+      "intro": "הנחה: המשתמש הקליד 50 בקלט הראשון ו-12 בקלט השני. כתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "val1 = int(input())\nval2 = int(input())\nans = val1 - val2\nprint(\"Difference:\", ans)\nprint(type(ans))",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "b2",
+      "number": 7,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 12,
+      "title": "מה יודפס למסך?",
+      "intro": "הנחה: המשתמש הקליד את האות ha בקלט. כתבו את הפלט המדויק.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "text = input(\"Enter text: \")\nres = text * 3\nprint(res)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן את שורת הפלט"
+        }
+      ]
+    },
+    {
+      "key": "b3",
+      "number": 8,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 11,
+      "title": "מה יודפס למסך?",
+      "intro": "כתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "print(\"Start\", end=\"-->\")\nprint(\"Finish\", end=\"!\")",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "c1",
+      "number": 9,
+      "section": "חלק ג': תיקון שגיאות",
+      "points": 10,
+      "title": "מצאו את השגיאה וכתבו את הקוד המתוקן",
+      "intro": "התוכנית אמורה לקלוט את הציון במבחן הראשון ובמבחן השני ולחשב את ממוצע הציונים. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן כך שיפעל.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "grade1 = input(\"Enter first grade: \")\ngrade2 = input(\"Enter second grade: \")\navg = (grade1 + grade2) / 2\nprint(\"Average:\", avg)",
+          "given": true
+        },
+        {
+          "key": "explain",
+          "kind": "short",
+          "label": "מה השגיאה?",
+          "placeholder": "הסבירו במילים שלכם"
+        },
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "הקוד המתוקן",
+          "placeholder": "כתבו כאן את התוכנית המתוקנת"
+        }
+      ]
+    },
+    {
+      "key": "c2",
+      "number": 10,
+      "section": "חלק ג': תיקון שגיאות",
+      "points": 10,
+      "title": "מצאו את השגיאה וכתבו את הקוד המתוקן",
+      "intro": "התוכנית אמורה לקלוט את גיל המשתמש ולהציג הודעה מותאמת אישית עם הגיל. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "user_age = int(input(\"Enter your age: \"))\nprint(\"Your age is \" + user_age)",
+          "given": true
+        },
+        {
+          "key": "explain",
+          "kind": "short",
+          "label": "מה השגיאה?",
+          "placeholder": "הסבירו במילים שלכם"
+        },
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "הקוד המתוקן",
+          "placeholder": "כתבו כאן את התוכנית המתוקנת"
+        }
+      ]
+    },
+    {
+      "key": "d1",
+      "number": 11,
+      "section": "חלק ד': כתיבת קוד מלא",
+      "points": 20,
+      "title": "כתבו תוכנית מלאה",
+      "intro": "כתבו תוכנית שקולטת מהמשתמש את שם העיר שאליה הוא רוצה לטוס (מחרוזת), את עלות כרטיס הטיסה (מספר עשרוני float), ואת מספר ימי החופשה המתוכננים (מספר שלם int), ומדפיסה הודעה אחת מסודרת המשלבת את שם העיר, העלות ומספר הימים עם כיתוב מילולי מתאים.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "התוכנית שלכם"
+        }
+      ]
+    }
+  ]
+}

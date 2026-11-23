@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "rubric": "lesson_3_worksheet",
+  "title": "שיעור 3 | תרגול לפיצוח — פקודת קלט",
+  "note": "בכל התרגילים הניחו כי הקלט הגיוני ותקין. מותר להריץ כל תוכנית בעזרת Run code לפני ההגשה.",
+  "items": [
+    {
+      "key": "ex1",
+      "number": 1,
+      "title": "מעקב פלט עם end",
+      "intro": "עקבו אחר הקוד והשלימו את הטבלה. שימו לב: ההוראה end ממקמת תו בסוף שורת הפלט.",
+      "parts": [
+        {
+          "key": "trace",
+          "kind": "table",
+          "code": "num = int(input(\"Enter a number : \"))\nprint(num, end= \" \")\nprint(num+1, end= \" \")\nprint(num+2, end= \" \")\nprint(num+3, end= \" \")",
+          "columns": [
+            { "key": "num", "label": "הערך של num", "readonly": true },
+            { "key": "output", "label": "הפלט" }
+          ],
+          "rows": [
+            ["1", ""],
+            ["15", ""],
+            ["100", ""]
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ex2",
+      "number": 2,
+      "title": "היקף ושטח",
+      "intro": "היקף עיגול: 2*pi*r. שטח מעגל: pi*(r**2). הניחו כי pi = 3.14, וכי r שלם וחיובי.",
+      "parts": [
+        {
+          "key": "a",
+          "kind": "code",
+          "label": "א.",
+          "prompt": "השלימו את התוכנית הקולטת את הרדיוס ומדפיסה היקף ושטח:",
+          "code": "pi = ________\n______ = int(input(\"Enter radius: \"))\nprint(\"The circumference of the circle is: \", ______________)  # היקף\nprint(\"The area of a circle is: \", ____________)  # שטח"
+        },
+        {
+          "key": "b",
+          "kind": "code",
+          "label": "ב.",
+          "prompt": "כתבו תוכנית הקולטת למשתנים b, a ו-c את אורכי הצלעות של משולש, ומחשבת ומדפיסה את היקפו:",
+          "code": ""
+        },
+        {
+          "key": "c",
+          "kind": "code",
+          "label": "ג.",
+          "prompt": "כתבו תוכנית הקולטת את אורך הצלע של ריבוע x, ומחשבת ומדפיסה את היקפו ואת שטחו:",
+          "code": ""
+        }
+      ]
+    },
+    {
+      "key": "ex3",
+      "number": 3,
+      "title": "מעקב ציונים וממוצע",
+      "intro": "עקבו אחר הקוד והשלימו את טבלת הציונים, הממוצע והפלט.",
+      "parts": [
+        {
+          "key": "trace",
+          "kind": "table",
+          "code": "grade1 = int(input(\"Enter math grade: \"))\ngrade2 = int(input(\"Enter english grade: \"))\ngrade3 = int(input(\"Enter physics grade: \"))\naverage = ((grade1 + grade2 + grade3) / 3)\nprint(\"Your average is: \", average)",
+          "columns": [
+            { "key": "grade1", "label": "grade1", "readonly": true },
+            { "key": "grade2", "label": "grade2", "readonly": true },
+            { "key": "grade3", "label": "grade3", "readonly": true },
+            { "key": "average", "label": "average" },
+            { "key": "output", "label": "פלט" }
+          ],
+          "rows": [
+            ["78", "95", "90", "", ""],
+            ["90", "70", "100", "", ""],
+            ["72", "87", "81", "", ""]
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ex4",
+      "number": 4,
+      "title": "חולצות — השלמת החסר",
+      "intro": "התוכנית קולטת את מספר החולצות ומודפסת את הסכום לתשלום. מחיר כל חולצה 15 ש\"ח. בחרו את התשובה הנכונה לכל מקום חסר.",
+      "parts": [
+        {
+          "key": "blanks",
+          "kind": "choice",
+          "prompt": "בחרו את התשובה לכל מקום חסר:",
+          "statements": [
+            {
+              "prompt": "הפקודה שמקבלת את מספר החולצות:",
+              "code": "shirts_number = ___ (input(\"Enter number of shirts: \"))",
+              "options": ["int", "input", "print"]
+            },
+            {
+              "prompt": "מחיר חולצה אחת:",
+              "code": "shirts_price = ___",
+              "options": ["15", "3.14", "100"]
+            },
+            {
+              "prompt": "הפקודה שמדפיסה את הסכום:",
+              "code": "___ (\"Total payment : \", ___ * shirts_price, \"nis\")",
+              "options": ["print", "input", "int"]
+            },
+            {
+              "prompt": "הביטוי שמוכפל במחיר החולצה:",
+              "code": "print(\"Total payment : \", ___ * shirts_price, \"nis\")",
+              "options": ["shirts_number", "shirts_price", "15"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ex5",
+      "number": 5,
+      "title": "שלושה משחקים ועודף",
+      "intro": "רוני חסך 100 ש\"ח וקנה שלושה משחקי מחשב. כתבו תוכנית הקולטת את מחירם, ומציגה את הסכום הכולל ואת העודף מ-100 ש\"ח.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": ""
+        }
+      ]
+    },
+    {
+      "key": "ex6",
+      "number": 6,
+      "title": "רישום ספרים בחנות",
+      "intro": "כתבו תוכנית הקולטת את פרטי הספרים: שם הספר, שם הסופר/ת, שפת הספר, מספר עמודים וכמות עותקים. התוכנית תדפיס סיכום של הנתונים. בדקו עם שלושה ספרים.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": ""
+        }
+      ]
+    },
+    {
+      "key": "ex7",
+      "number": 7,
+      "title": "רישום נוסעים בטיסה",
+      "intro": "כתבו תוכנית הקולטת שם פרטי, שם משפחה, מספר דרכון (כמחרוזת), כמות כבודה, משקל מזוודות ויעד טיסה, ומדפיסה סיכום. בדקו עם שני נוסעים לפחות.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": ""
+        }
+      ]
+    },
+    {
+      "key": "ex8",
+      "number": 8,
+      "title": "חשבונית לחנות קומיקס",
+      "intro": "כתבו תוכנית הקולטת שם פרטי, שם משפחה, מספר כרטיס אשראי (כמחרוזת), קוד אימות וסכום לתשלום, ומדפיסה חשבונית עם סיכום הרכישה — ללא פרטי האשראי.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": ""
+        }
+      ]
+    }
+  ]
+}

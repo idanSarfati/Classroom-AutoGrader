@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="card empty-state">
+  <p class="error-code" aria-hidden="true">{{ title }}</p>
+  <h1>{{ title }}</h1>
+  <p class="muted">{{ message }}</p>
+  <p>
+    <a class="button button-primary" href="{{ '/' if user else '/login' }}">חזרה לדף הבית</a>
+  </p>
+</section>
+{% endblock %}

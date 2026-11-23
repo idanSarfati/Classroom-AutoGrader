@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}התחברות · {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="auth-shell">
+  <div class="card auth-card">
+    <h1>התחברות לפורטל</h1>
+    <p class="muted">
+      החשבון נוצר על ידי המורה. אם עדיין אין לכם חשבון, פנו למורה שלכם.
+    </p>
+
+    {% if error %}
+    <div class="flash flash-error" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="next_path" value="{{ next_path or '' }}">
+
+      <label for="username">שם משתמש</label>
+      <input
+        id="username"
+        name="username"
+        type="text"
+        value="{{ username or '' }}"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        required
+        autofocus
+        dir="ltr"
+        class="ltr-input">
+
+      <label for="password">סיסמה</label>
+      <div class="password-field">
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          dir="ltr"
+          class="ltr-input">
+        {# Typing on a phone hides the whole password, so a typo means starting
+           over. The button switches the same field between hidden and visible
+           and never replaces it, so the value and autofill stay intact. #}
+        <button
+          type="button"
+          class="password-toggle"
+          data-password-toggle
+          aria-controls="password"
+          aria-pressed="false"
+          aria-label="הצגת הסיסמה"
+          title="הצגת הסיסמה">
+          <svg class="icon-eye" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path>
+            <circle cx="12" cy="12" r="3.2"></circle>
+          </svg>
+          <svg class="icon-eye-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"></path>
+            <circle cx="12" cy="12" r="3.2"></circle>
+            <path d="M4 4l16 16"></path>
+          </svg>
+        </button>
+      </div>
+
+      <button type="submit" class="button button-primary button-block">כניסה</button>
+    </form>
+
+    <p class="hint">
+      אין צורך בחשבון Google. שם המשתמש והסיסמה נקבעים על ידי המורה.
+    </p>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "rubric": "lesson_4",
+  "title": "4.2 | תרגול — פונקציות: הגדרה וקריאה (ללא פרמטרים וללא ערך חוזר)",
+  "note": "בתרגול זה מגדירים פונקציות בעזרת def וקוראים להן בשמן עם סוגריים. הפונקציות אינן מקבלות פרמטרים ואינן מחזירות ערך (אין return). מותר להריץ כל תוכנית בעזרת Run code לפני ההגשה; כאשר התוכנית קולטת input, הזינו את הערכים בקונסולה שמתחת לעורך.",
+  "items": [
+    {
+      "key": "ex1",
+      "number": 1,
+      "title": "היקף משולש",
+      "intro": "כתבו פונקציה שקולטת מהמשתמש את שלושת אורכי הצלעות של משולש (מספרים שלמים), מחשבת את היקף המשולש ומדפיסה אותו. היקף משולש = סכום שלוש צלעותיו. אל תשכחו לקרוא לפונקציה אחרי ההגדרה שלה — בלי קריאה, הפונקציה לא תרוץ. שם קובץ מומלץ: ex4_1.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "prompt": "הגדירו פונקציה (def) שבתוכה: קלטו שלוש צלעות בעזרת int(input(...)), חשבו את סכומן והדפיסו את ההיקף. אחרי ההגדרה, קראו לפונקציה:",
+          "code": "",
+          "placeholder": "# הגדירו כאן את הפונקציה, ואז קראו לה\n"
+        }
+      ]
+    },
+    {
+      "key": "ex2",
+      "number": 2,
+      "title": "מחשבון",
+      "intro": "כתבו פונקציה בשם calculator שקולטת מהמשתמש שלושה מספרים שלמים, ומדפיסה את הסכום שלהם ואת המכפלה שלהם. אל תשכחו לקרוא לפונקציה אחרי ההגדרה שלה. שם קובץ מומלץ: ex4_2.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "prompt": "הגדירו את הפונקציה calculator: קלטו שלושה מספרים שלמים בעזרת int(input(...)), הדפיסו את סכומם ואת מכפלתם, ואז קראו ל-calculator():",
+          "code": "",
+          "placeholder": "# הגדירו כאן את calculator, ואז קראו לה\n"
+        }
+      ]
+    },
+    {
+      "key": "ex3",
+      "number": 3,
+      "title": "שטיח קסמים — סדר הקריאות לפונקציות",
+      "intro": "הקוד שלפניכם מגדיר פונקציות שמדפיסות צורות מכוכבים, וקורא להן בסדר מסוים. סדר הקריאות קובע את דוגמת השטיח שנוצרת בפלט.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "prompt": "א. הריצו את הקוד הנתון וצפו בשטיח שנוצר. ב. שנו את סדר הקריאות לפונקציות (מותר לחזור על קריאות כמה פעמים שרוצים) כדי ליצור שטיח בעיצוב אישי משלכם. ג. הגדירו שתי פונקציות צורה חדשות משלכם (בעזרת שורות print, ללא לולאות) ושלבו קריאות אליהן בשטיח החדש:",
+          "code": "def stars_triangle():\n    print(\"  *\")\n    print(\" ***\")\n    print(\"*****\")\n\ndef stars_square():\n    print(\"*****\")\n    print(\"*****\")\n    print(\"*****\")\n\ndef stars_line():\n    print(\"*****\")\n\n# דוגמה לקריאות — שנו את הסדר, הוסיפו חזרות ושלבו את הצורות החדשות שלכם\nstars_triangle()\nstars_square()\nstars_line()\n"
+        }
+      ]
+    },
+    {
+      "key": "ex4",
+      "number": 4,
+      "title": "אתגר — מכירת עוגות (השלמת קוד)",
+      "intro": "הפונקציה calculate_earnings קולטת את מספר העוגות שנאספו, את מספר העוגות שנמכרו ואת מחיר המכירה לעוגה. היא אמורה להדפיס: את הרווח הצפוי (אילו כל העוגות שנאספו היו נמכרות), את הרווח בפועל (לפי העוגות שנמכרו בלבד), ואת ההפרש בין הרווח הצפוי לרווח בפועל.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "prompt": "השלימו את שלושת המקומות החסרים (הקווים התחתונים) בביטויים הנכונים, כך שהפונקציה תחשב ותדפיס נכון. אל תשנו את שאר הקוד, ואל תשכחו שהקריאה לפונקציה כבר נמצאת בסוף:",
+          "code": "def calculate_earnings():\n    total_cakes = int(input(\"Enter the number of cakes collected: \"))\n    sold_cakes = int(input(\"Enter the number of cakes sold: \"))\n    price_per_cake = float(input(\"Enter the selling price per cake: \"))\n\n    expected_earnings = _____________ * price_per_cake\n    actual_earnings = sold_cakes * ____________\n    earnings_difference = expected_earnings - actual_earnings\n\n    print(\"Expected earnings from selling all cakes:\", expected_earnings, \"nis\")\n    print(\"Actual earnings from selling the cakes:\", actual_earnings, \"nis\")\n    print(\"Difference between expected and actual earnings:\", _______________, \"nis\")\n\ncalculate_earnings()\n"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+[Unit]
+Description=Classroom portal (FastAPI + grading worker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=portal
+Group=portal
+WorkingDirectory=/opt/clasroom-autograder
+Environment=PORTAL_ENV=production
+Environment=PORTAL_HTTPS_ONLY=1
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Jerusalem
+EnvironmentFile=-/etc/portal/portal.env
+ExecStart=/opt/clasroom-autograder/.venv/bin/python -m uvicorn portal.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1 --log-level info
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# A student who reaches the server cannot make the service read /home or
+# write outside the two data directories. The sandbox in portal/sandbox is a
+# second layer, not a replacement for this one.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/clasroom-autograder/portal/data /opt/clasroom-autograder/portal/content
+
+[Install]
+WantedBy=multi-user.target

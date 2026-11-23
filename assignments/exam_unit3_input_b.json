@@ -1,0 +1,114 @@
+{
+  "assignment_title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים - גרסה ב'",
+  "topic": "הבוחן בודק את יחידה 3: פקודת הקלט input, המרת טיפוסים (int, float), מעקב ריצה, תיקון שגיאות וכתיבת תוכנית מלאה. בכל גרסה 11 שאלות ב-100 נקודות. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א': שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "a1",
+          "type": "multiple_choice",
+          "question": "איזה סוג מידע מוחזר תמיד אל תוך התוכנית כאשר המשתמש מקליד נתונים דרך פקודת input()? (מספר שלם (int) / מחרוזת טקסט (str) / מספר עשרוני (float) / טיפוס לוגי (bool))"
+        },
+        {
+          "id": "a2",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט של קטע הקוד הבא אם המשתמש יקיש 10 ואז 4? (14 / 104 / 10 4 / שגיאת קומפילציה)"
+        },
+        {
+          "id": "a3",
+          "type": "multiple_choice",
+          "question": "כיצד יש לרשום קוד שקולט מהמשתמש מחיר של מוצר כמספר עשרוני ושומר אותו במשתנה price? (price = float(input(\"Enter price: \")) / price = input(float(\"Enter price: \")) / price = input(\"Enter price:\").float() / float price = input(\"Enter price:\"))"
+        },
+        {
+          "id": "a4",
+          "type": "multiple_choice",
+          "question": "מה יתרחש אם נריץ את השורה הבאה והמשתמש יקליד את המילה hello במקום ערך מספרי? (המשתנה יקבל את הערך 0 / המשתנה ישמור את הטקסט \"hello\" / תתרחש שגיאת ערך (ValueError) / פייתון תתעלם מהפקודה ותמשיך הלאה)"
+        },
+        {
+          "id": "a5",
+          "type": "multiple_choice",
+          "question": "מהי מטרתו של הפרמטר end בפקודת ההדפסה print בפייתון? (לעצור את ריצת התוכנית מיד לאחר ההדפסה / לקבוע מה יתווסף בסוף פלט ההדפסה במקום מעבר השורה האוטומטי / לסיים את המחרוזת במרכאות כפולות / למחוק את תוכן המסך לפני ההדפסה)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב': מעקב ריצה",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "b1",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הנחה: המשתמש הקליד 50 בקלט הראשון ו-12 בקלט השני. כתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "val1 = int(input())\nval2 = int(input())\nans = val1 - val2\nprint(\"Difference:\", ans)\nprint(type(ans))",
+          "expected_output": "Difference: 38\n<class 'int'>"
+        },
+        {
+          "id": "b2",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הנחה: המשתמש הקליד את האות ha בקלט. כתבו את הפלט המדויק.",
+          "code": "text = input(\"Enter text: \")\nres = text * 3\nprint(res)",
+          "expected_output": "hahaha"
+        },
+        {
+          "id": "b3",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? כתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "print(\"Start\", end=\"-->\")\nprint(\"Finish\", end=\"!\")",
+          "expected_output": "Start-->Finish!"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג': תיקון שגיאות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "c1",
+          "type": "debugging",
+          "question": "מצאו את השגיאה וכתבו את הקוד המתוקן התוכנית אמורה לקלוט את הציון במבחן הראשון ובמבחן השני ולחשב את ממוצע הציונים. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן כך שיפעל.",
+          "code": "grade1 = input(\"Enter first grade: \")\ngrade2 = input(\"Enter second grade: \")\navg = (grade1 + grade2) / 2\nprint(\"Average:\", avg)",
+          "requirements": [
+            "התוכנית רצה",
+            "הפלט: Average: 85.0",
+            "המקור ממיר ל-int או float"
+          ],
+          "corrected_code": "grade1 = float(input(\"Enter first grade: \"))\ngrade2 = float(input(\"Enter second grade: \"))\navg = (grade1 + grade2) / 2\nprint(\"Average:\", avg)"
+        },
+        {
+          "id": "c2",
+          "type": "debugging",
+          "question": "מצאו את השגיאה וכתבו את הקוד המתוקן התוכנית אמורה לקלוט את גיל המשתמש ולהציג הודעה מותאמת אישית עם הגיל. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן.",
+          "code": "user_age = int(input(\"Enter your age: \"))\nprint(\"Your age is \" + user_age)",
+          "requirements": [
+            "התוכנית רצה",
+            "הפלט: Your age is 15",
+            "ההדפסה מחברת את המשתנה כראוי"
+          ],
+          "corrected_code": "user_age = int(input(\"Enter your age: \"))\nprint(\"Your age is\", user_age)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד': כתיבת קוד מלא",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "d1",
+          "type": "code_writing",
+          "question": "כתבו תוכנית מלאה כתבו תוכנית שקולטת מהמשתמש את שם העיר שאליה הוא רוצה לטוס (מחרוזת), את עלות כרטיס הטיסה (מספר עשרוני float), ואת מספר ימי החופשה המתוכננים (מספר שלם int), ומדפיסה הודעה אחת מסודרת המשלבת את שם העיר, העלות ומספר הימים עם כיתוב מילולי מתאים.",
+          "corrected_code": "city = input(\"Enter city: \")\ncost = float(input(\"Enter ticket cost: \"))\ndays = int(input(\"Enter vacation days: \"))\nprint(\"Trip to\", city, \"costs\", cost, \"for\", days, \"days\")",
+          "requirements": [
+            "התוכנית רצה בשני הקלטים",
+            "הפלט בקלט הראשון",
+            "הפלט בקלט השני",
+            "המקור ממיר את מספר הימים ב-int",
+            "המקור ממיר את העלות ב-float"
+          ]
+        }
+      ]
+    }
+  ]
+}

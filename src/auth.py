@@ -36,6 +36,15 @@ TOKEN_SECRET = "GOOGLE_TOKEN"
 
 SCOPES: tuple[str, ...] = (
     "https://www.googleapis.com/auth/classroom.courses.readonly",
+    # Manage course configuration (course work) so this project can create the
+    # Developer-owned drafts that the auto-grader can later grade/return.
+    "https://www.googleapis.com/auth/classroom.courses",
+    # Dedicated Topics scopes (separate from classroom.courses): list and
+    # create the ``מבחן רבעוני`` topic that groups the drafts.
+    "https://www.googleapis.com/auth/classroom.topics.readonly",
+    "https://www.googleapis.com/auth/classroom.topics",
+    # Teacher-level coursework scope: create course work as the course owner.
+    "https://www.googleapis.com/auth/classroom.coursework.me",
     "https://www.googleapis.com/auth/classroom.coursework.students",
     "https://www.googleapis.com/auth/classroom.rosters.readonly",
     # Read access to Docs, used to extract the submitted text and to place

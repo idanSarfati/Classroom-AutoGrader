@@ -1,0 +1,10 @@
+{# Student-facing disqualification notice. `disq` is the sanitized student
+   projection ({active, score}) set by the caller; the teacher's reason, author
+   and timestamp never reach here. Shown next to the score so a fixed,
+   disqualified grade is explained even under a scores-only release. #}
+{% if disq and disq.active %}
+<p class="notice-inline disqualification-notice">
+  <span class="badge badge-warning">ההגשה נפסלה</span>
+  המורה פסלה את ההגשה וקבעה לה ציון קבוע של {{ disq.score }} מתוך 100.
+</p>
+{% endif %}

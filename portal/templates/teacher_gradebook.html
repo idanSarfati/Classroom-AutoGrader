@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}ספר ציונים · {{ group.name }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>ספר ציונים</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>ספר ציונים · {{ group.name }}</h1>
+    <p class="muted">
+      {{ book.stats.students }} תלמידים
+      · {{ book.stats.assignments }} מטלות מפורסמות
+      {% if book.stats.possible_submissions %}
+      · הושלמו {{ book.stats.completion_percent }}% מההגשות
+      {% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    {% if book.assignments %}
+    <a class="button button-primary" href="/teacher/classes/{{ group.id }}/export">
+      הורדת CSV
+    </a>
+    {% endif %}
+    <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">
+      חזרה לכיתה
+    </a>
+  </div>
+</section>
+
+<dl class="stat-row gradebook-stats">
+  <div>
+    <dt>ממוצע כיתה</dt>
+    <dd>{{ book.stats.average if book.stats.average is not none else '—' }}</dd>
+  </div>
+  <div>
+    <dt>הוגשו</dt>
+    <dd>{{ book.stats.submitted }} / {{ book.stats.possible_submissions }}</dd>
+  </div>
+  <div>
+    <dt>חסרים</dt>
+    <dd>{{ book.stats.missing }}</dd>
+  </div>
+  <div>
+    <dt>ממתינים לבדיקה</dt>
+    <dd>{{ book.stats.queued }}</dd>
+  </div>
+  <div>
+    <dt>באיחור</dt>
+    <dd>{{ book.stats.late }}</dd>
+  </div>
+  <div>
+    <dt>לסקירה</dt>
+    <dd>{{ book.stats.needs_review }}</dd>
+  </div>
+</dl>
+
+{% if not book.assignments %}
+<section class="card empty-state">
+  <h2>אין מטלות מפורסמות</h2>
+  <p>ספר הציונים מציג רק מטלות שפורסמו לתלמידים. פרסמו מטלה בכיתה כדי להתחיל.</p>
+  <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">ניהול המטלות</a>
+</section>
+{% elif not book.rows %}
+<section class="card empty-state">
+  <h2>אין תלמידים בכיתה</h2>
+  <p>הוסיפו תלמידים לכיתה כדי לראות את מטריצת הציונים.</p>
+  <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">הוספת תלמידים</a>
+</section>
+{% else %}
+<section class="card gradebook-card">
+  <div class="section-head">
+    <h2>מטריצת ציונים <span class="count">{{ book.rows|length }} × {{ book.assignments|length }}</span></h2>
+    <span class="muted small">לחיצה על ציון פותחת את ההגשה</span>
+  </div>
+
+  <div class="table-scroll" tabindex="0" role="region" aria-label="מטריצת ציונים לפי תלמיד ומטלה">
+    <table class="matrix-table">
+      <caption class="visually-hidden">ציוני התלמידים בכל מטלה מפורסמת</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="matrix-student-col">תלמיד</th>
+          {% for assignment in book.assignments %}
+          <th scope="col" class="matrix-assignment">
+            <a href="/teacher/assignments/{{ assignment.id }}/grading">{{ assignment.title }}</a>
+            {% if assignment.due_at %}
+            <span class="matrix-due">יעד {{ assignment.due_at|local_date }}</span>
+            {% endif %}
+          </th>
+          {% endfor %}
+          <th scope="col" class="matrix-average-col">ממוצע</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in book.rows %}
+        <tr>
+          <th scope="row" class="matrix-student">
+            <a href="/teacher/students/{{ row.student.id }}/profile">{{ row.student.display_name }}</a>
+            <span class="matrix-username" dir="ltr">{{ row.student.username }}</span>
+            {% if row.needs_review_count %}
+            <span class="badge badge-warning">לסקירה {{ row.needs_review_count }}</span>
+            {% endif %}
+          </th>
+          {% for cell in row.cells %}
+          <td class="matrix-cell matrix-cell-{{ cell.status }}">
+            {% if cell.status == 'graded' %}
+            <a class="matrix-score" href="/teacher/submissions/{{ cell.submission_id }}"
+               title="{{ cell.label }}">{{ cell.score }}</a>
+            <span class="matrix-flags">
+              {% if cell.late %}<span class="badge badge-late">באיחור</span>{% endif %}
+              {% if cell.needs_review %}<span class="badge badge-warning">לסקירה</span>{% endif %}
+            </span>
+            {% elif cell.status == 'queued' %}
+            <a class="matrix-pending" href="/teacher/submissions/{{ cell.submission_id }}">{{ cell.label }}</a>
+            {% elif cell.status == 'failed' %}
+            <a class="matrix-failed" href="/teacher/submissions/{{ cell.submission_id }}">{{ cell.label }}</a>
+            {% else %}
+            <span class="matrix-missing">{{ cell.label }}</span>
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td class="matrix-average">
+            {{ row.average if row.average is not none else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th scope="row" class="matrix-student">ממוצע מטלה</th>
+          {% for column in book.assignment_stats %}
+          <td class="matrix-cell matrix-foot">
+            <strong>{{ column.average if column.average is not none else '—' }}</strong>
+            <span class="matrix-sub">
+              {{ column.graded }} נבדקו
+              {% if column.missing %}· {{ column.missing }} חסרים{% endif %}
+              {% if column.late %}· {{ column.late }} באיחור{% endif %}
+            </span>
+          </td>
+          {% endfor %}
+          <td class="matrix-average matrix-foot">
+            <strong>{{ book.stats.average if book.stats.average is not none else '—' }}</strong>
+            <span class="matrix-sub">ממוצע כיתה</span>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <p class="hint">
+    מוצגות רק מטלות מפורסמות. ציון מוצג רק עבור הגרסה הנוכחית של ההגשה;
+    הגשה חדשה שממתינה לבדיקה אינה מציגה את הציון הקודם.
+  </p>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,108 @@
+{
+  "assignment_title": "מבחן מקיף בפייתון - יחידות 1-3 - גרסה ב",
+  "topic": "מבחן רבעוני",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א: שאלות אמריקאיות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "multiple_choice",
+          "question": "ב (Hello World - הדפסת מספר אובייקטים המופרדים בפסיק מוסיפה רווח ביניהם)",
+          "correct_answer": "Hello World"
+        },
+        {
+          "id": "q2",
+          "type": "multiple_choice",
+          "question": "ג (str - הטיפוס של תוצאת input)",
+          "correct_answer": "str"
+        },
+        {
+          "id": "q3",
+          "type": "multiple_choice",
+          "question": "ב (<class 'int'> - הטיפוס של המספר השלם 100)",
+          "correct_answer": "<class 'int'>"
+        },
+        {
+          "id": "q4",
+          "type": "multiple_choice",
+          "question": "ב (total_price - שם משתנה תקין וחוקי)",
+          "correct_answer": "total_price"
+        },
+        {
+          "id": "q5",
+          "type": "multiple_choice",
+          "question": "ג (3040 - שרשור מחרוזות של '30' ו-'40')",
+          "correct_answer": "3040"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב: מעקב ריצה",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "expected_output",
+          "question": "בהנחה שהזין המשתמש ערך 100",
+          "code": "x = 100\nprint(type(x))\nprint(125)",
+          "expected_output": "<class 'int'>\n125"
+        },
+        {
+          "id": "q2",
+          "type": "expected_output",
+          "question": "מהו הפלט:",
+          "code": "p = 38\nq = 30\nprint(p)\nprint(q)",
+          "expected_output": "38\n30"
+        },
+        {
+          "id": "q3",
+          "type": "expected_output",
+          "question": "שאלה 3",
+          "code": "Runner Maya finished in 12.5 seconds",
+          "expected_output": "Runner Maya finished in 12.5 seconds"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג: תיקון שגיאות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "debugging",
+          "question": "שגיאה: המשתנה item_name הוכנס בתוך מירכאות טקסט",
+          "code": "item_name = \"Laptop\"\nprint(\"Product name:\", item_name)",
+          "corrected_code": "item_name = \"Laptop\"\nprint(\"Product name:\", item_name)"
+        },
+        {
+          "id": "q2",
+          "type": "debugging",
+          "question": "הקלט מ-input הוא מחרוזת, ולכן כפל ב-100 משכפל אותה במקום לחשב כמות פיזית",
+          "code": "height = input('Enter your height in meters: ')\nheight_cm = height * 100\nprint('Height in cm:', height_cm)",
+          "corrected_code": "height = float(input('Enter your height in meters: '))\nheight_cm = height * 100\nprint('Height in cm:', height_cm)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד: כתיבת קוד",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "code_writing",
+          "question": "כתיבת קוד מלא לגרסת ב'",
+          "code": "product_name = input('Enter product name: ')\nstock_quantity = int(input('Enter stock quantity: '))\nunit_price = float(input('Enter unit price: '))\nprint('Product:', product_name, '| Quantity:', stock_quantity, '| Price per unit:', unit_price, 'NIS')",
+          "requirements": [
+            "קלט שם מוצר",
+            "כמות מלאי כמספר שלם",
+            "מחיר יחידה כמספר עשרוני",
+            "פלט ממוין בטורים"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}השיעורים שלי · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>שיעורים</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>השיעורים שלי</h1>
+    <p class="muted">שיעורים ומצגות לקריאה מהטלפון, בלי קישורים חיצוניים.</p>
+  </div>
+</section>
+
+{% if lessons %}
+<section class="card">
+  <ul class="lesson-list">
+    {% for lesson in lessons %}
+    <li class="lesson-row">
+      <div class="lesson-main">
+        <a class="lesson-link" href="/student/lessons/{{ lesson.id }}">{{ lesson.title }}</a>
+        <div class="meta muted">
+          {% if lesson.class_id %}{{ class_names[lesson.class_id] }}{% else %}שיעור כללי{% endif %}
+          · {{ slide_counts.get(lesson.id, 0) }} שקופיות
+        </div>
+        {% if lesson.summary %}
+        <p class="clamp">{{ lesson.summary }}</p>
+        {% endif %}
+      </div>
+      <a class="button button-secondary" href="/student/lessons/{{ lesson.id }}">למידה</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<section class="card empty-state">
+  <h2>עוד אין שיעורים</h2>
+  <p>כשהמורה תפרסם שיעור, הוא יופיע כאן.</p>
+  <a class="button button-quiet" href="/student">חזרה ללימודים שלי</a>
+</section>
+{% endif %}
+{% endblock %}

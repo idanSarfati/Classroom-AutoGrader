@@ -255,6 +255,9 @@ def render_release_tab(service: ClassroomService) -> None:
                 _run_release_action(
                     service, selected_report_path, edited_report, options
                 )
+                # Refresh so the just-released report drops out of the
+                # "Select Saved Evaluation Report" dropdown.
+                st.rerun()
 
 def _render_publish_options(report_path: Path) -> dict[str, bool]:
     """Checkboxes choosing what the release step actually does per student.
@@ -556,6 +559,7 @@ def _run_release_action(
     status_text = st.empty()
 
     results_data = []
+    released: list[str] = []
 
     for idx, entry in enumerate(report.entries, start=1):
         status_text.text(f"Releasing [{idx}/{total}]: {entry.student_name}...")
@@ -616,6 +620,7 @@ def _run_release_action(
                     report.course_id, report.course_work_id, entry.submission_id
                 )
                 student_status_parts.append("Return: Success")
+                released.append(entry.submission_id)
             except ClassroomServiceError as exc:
                 unreleased.append((entry.student_name, f"return failed: {exc}"))
                 student_status_parts.append(f"Return: Failed ({exc})")
@@ -630,6 +635,15 @@ def _run_release_action(
             "Details": ", ".join(student_status_parts),
         })
         progress_bar.progress(idx / total)
+
+    # Remember who was actually returned so the dashboard can drop them
+    # without waiting for a manual page refresh. Headless test stubs may
+    # expose session_state as a callable rather than a mapping; skip the
+    # write in that case.
+    try:
+        st.session_state["_dashboard_released_submissions"] = released
+    except (TypeError, AttributeError):
+        pass
 
     status_text.empty()
     progress_bar.empty()
@@ -654,6 +668,11 @@ def _run_release_action(
             with st.expander("Removed Artifacts"):
                 for r in removed:
                     st.write(f"- `{r.as_posix()}`")
+        # Refresh so the just-released report drops out of the
+        # "Select Saved Evaluation Report" dropdown and, when it was the
+        # last one, the empty-state banner shows instead.
+        # Handled by callers instead, so that the dashboard can also drop
+        # just-released students from its pending list in the same pass.
 
 # ----------------------------------------------------------------------
 # Seam wiring

@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "rubric": "lesson_2_worksheet",
+  "title": "שיעור 2 | תרגול לפיצוח — דף עבודה",
+  "note": "בכל תרגיל כתבו את הפתרון במקום המתאים. אפשר להריץ כל תוכנית בעזרת Run code לפני ההגשה.",
+  "items": [
+    {
+      "key": "ex1",
+      "number": 1,
+      "title": "פקודות השמה ושאלות type",
+      "intro": "בסעיפים א' ו-ב' כתבו את ההוראה בשפת פייתון. בסעיף ג' סמנו נכון / לא נכון לכל טענה.",
+      "parts": [
+        {
+          "key": "a",
+          "kind": "code_line",
+          "label": "א.",
+          "prompt": "הציבו במשתנה name את הערך \"Bob\":",
+          "placeholder": "name = ..."
+        },
+        {
+          "key": "b",
+          "kind": "code_line",
+          "label": "ב.",
+          "prompt": "הציבו במשתנה age את הערך 14:",
+          "placeholder": "age = ..."
+        },
+        {
+          "key": "c",
+          "kind": "choice",
+          "label": "ג.",
+          "prompt": "לפניכם רצף הפקודות הבא. סמנו נכון / לא נכון לכל טענה:",
+          "code": "my_birth_year = 2006\nprint(type(my_birth_year))",
+          "options": ["נכון", "לא נכון"],
+          "statements": [
+            { "prompt": "המשתנה my_birth_year הוא מטיפוס int" },
+            { "prompt": "הפלט המתקבל לאחר ההרצה הוא <class 'int'>" },
+            { "prompt": "הצבנו את הערך 2006 במשתנה my_birth_year" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ex2",
+      "number": 2,
+      "title": "התאמת קוד לפלט",
+      "intro": "לפניכם קטעי קוד. כתבו בטבלה את הפלט המתקבל מכל קטע.",
+      "parts": [
+        {
+          "key": "outputs",
+          "kind": "table",
+          "columns": [
+            { "key": "code", "label": "קטע קוד", "readonly": true, "code": true },
+            { "key": "output", "label": "פלט" }
+          ],
+          "rows": [
+            ["num1 = 4\nnum2 = 2\nnum1 = num1 + num2 - 1\nprint(num1)", ""],
+            ["num1 = 4\nnum2 = 2\nprint(num1 * num2)", ""],
+            ["num1 = 4\nnum2 = 2\nprint(num1 ** num2)", ""],
+            ["num1 = 5\nnum2 = 2\nnum2 = num1 - num2\nprint(num2)", ""],
+            ["text1 = \"Hello\"\ntext2 = \"world\"\nprint(text1 + text2)", ""],
+            ["text1 = \"Hello\"\ntext2 = \"world\"\nprint(text1, text2)", ""]
+          ]
+        }
+      ]
+    },
+    {
+      "key": "ex3",
+      "number": 3,
+      "title": "השלמת תוכנית עם שלושה משתנים",
+      "intro": "לפניכם תוכנית המגדירה 3 משתנים מטיפוסים שונים. השלימו את החסר. שימו לב כי עליכם להכניס ערכים לבחירתכם.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": "name = _________        # שמכם הפרטי\nheight = _________      # גובה\nage = _______           # גיל\n\nprint(\"My name is \", name)\nprint(\"My height is \", ________)\npint(\"My age is \", ________)"
+        }
+      ]
+    },
+    {
+      "key": "ex4",
+      "number": 4,
+      "title": "חישוב סכום שני מספרים",
+      "intro": "הציבו ערכים מספריים במקומות החסרים. על התוכנית להדפיס את סכום שני המספרים. הריצו עם 10 ו-20 ובדקו את תקינותה.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": "num1 = _____\nnum2 = _____\ntotal = ______ + _______\nprint(\"total = \" , ______ )"
+        }
+      ]
+    },
+    {
+      "key": "ex6",
+      "number": 6,
+      "title": "בדיקת טיפוסים עם type",
+      "intro": "לפניכם אלגוריתם מילולי. תרגמו אותו לקוד, ואז כתבו את הפלט שהתקבל.",
+      "parts": [
+        {
+          "key": "a",
+          "kind": "code",
+          "label": "א.",
+          "prompt": "הגדירו משתנה num1 עם מספר שלם (למשל 6), משתנה num2 עם מספר ממשי (למשל 7.23), והדפיסו את סוגי המשתנים בעזרת type.",
+          "code": ""
+        },
+        {
+          "key": "b",
+          "kind": "short",
+          "label": "ב.",
+          "prompt": "כתבו את הפלט המתקבל:",
+          "placeholder": "הפלט:"
+        }
+      ]
+    },
+    {
+      "key": "ex9",
+      "number": 9,
+      "title": "השמת צבעים והדפסה",
+      "intro": "תרגמו את האלגוריתם לשפת פייתון.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": "",
+          "prompt": "הציבו במשתנה colorR את הערך red, במשתנה colorG את הערך green ובמשתנה colorB את הערך blue. הדפיסו את ערכי המשתנים colorB, colorG, colorR."
+        }
+      ]
+    },
+    {
+      "key": "ex10",
+      "number": 10,
+      "title": "מעקב אחר עדכון ערכי משתנים",
+      "intro": "תרגמו את האלגוריתם לשפת פייתון.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code",
+          "code": "",
+          "prompt": "הציבו num1 = 8 ו-num2 = 2. עדכנו את num1 לביטוי num1 + num2, ואז לביטוי num1 - 5, והדפיסו את num1 ואת num2. אחר כך הציבו num2 = num1 + 1 והדפיסו שוב את num1 ואת num2."
+        }
+      ]
+    }
+  ]
+}

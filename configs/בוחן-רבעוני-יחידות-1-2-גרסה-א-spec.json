@@ -1,0 +1,108 @@
+{
+  "assignment_title": "בוחן רבעוני בפייתון - יחידות 1-2 גרסה א",
+  "topic": "מבחן רבעוני",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א: שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "multiple_choice",
+          "question": "איזה משמות המשתנים הבאים הוא תקין וחוקי לשמירה בפייתון? א) 2grades  ב) my_variable  ג) total#score  ד) user?name",
+          "correct_answer": "ב (my_variable)"
+        },
+        {
+          "id": "q2",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט של פקודת ההדפסה: print(\"Hello\", \"World\")? א) HelloWorld  ב) Hello World  ג) Hello, World  ד) שגיאת תחביר",
+          "correct_answer": "ב (Hello World)"
+        },
+        {
+          "id": "q3",
+          "type": "multiple_choice",
+          "question": "כיצד כותבים הערה (Comment) שאינה רצה בקוד פייתון? א) באמצעות התו #  ב) באמצעות //  ג) באמצעות {}  ד) באמצעות המילה comment",
+          "correct_answer": "א (באמצעות התו #)"
+        },
+        {
+          "id": "q4",
+          "type": "multiple_choice",
+          "question": "מהו טיפוס הנתונים של הערך השמור במשתנה: x = \"75.5\"? א) int  ב) float  ג) str  ד) bool",
+          "correct_answer": "ג (str)"
+        },
+        {
+          "id": "q5",
+          "type": "multiple_choice",
+          "question": "מה תדפיס פקודת ההדפסה: print(type(100))? א) <class 'str'>  ב) <class 'int'>  ג) <class 'float'>  ד) 100",
+          "correct_answer": "ב (<class 'int'>)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב: מעקב ריצה",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "score = 90\nsubject = \"Python\"\nprint(\"My score in\", subject, \"is\", score)",
+          "expected_output": "My score in Python is 90"
+        },
+        {
+          "id": "q2",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "x = 5\ny = 12\nx = y\ny = x + 3\nprint(x)\nprint(y)",
+          "expected_output": "12\n15"
+        },
+        {
+          "id": "q3",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "a = 2026\nb = \"2026\"\nprint(type(a))\nprint(type(b))",
+          "expected_output": "<class 'int'>\n<class 'str'>"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג: תיקון שגיאות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "debugging",
+          "question": "חיבור מחרוזת ומספר שלם באמצעות +",
+          "code": "age = 15\nprint(\"I am \" + age + \" years old\")",
+          "corrected_code": "age = 15\nprint(\"I am \" + str(age) + \" years old\")"
+        },
+        {
+          "id": "q2",
+          "type": "debugging",
+          "question": "חיבור מחרוזת ומספר שלם באמצעות +",
+          "code": "num_items = 5\ntotal_price = num_items * price\nprice = 20\nprint(total_price)",
+          "corrected_code": "price = 20\nnum_items = 5\ntotal_price = num_items * price\nprint(total_price)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד: כתיבת קוד",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "code_writing",
+          "question": "הגדר משתנה עבור שם של ספר אהוב, משתנה עבור מספר העמודים (int), ומשתנה עבור המחיר (float). הדפסה בפקודת print אחת.",
+          "code": "book_name = \"The Little Prince\"\npages = 96\nprice = 45.5\nprint(\"My favorite book is\", book_name, \"with\", pages, \"pages, costing\", price, \"NIS\")",
+          "requirements": [
+            "שם ספר",
+            "מספר עמודים כ-int",
+            "מחיר כ-float",
+            "פקודת print אחת עם טקסט"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+{% block title %}{{ student.display_name }} · {{ assignment.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% from "_exam_review_paper.html" import review_paper with context %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/assignments/{{ assignment.id }}/grading">{{ assignment.title }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ student.display_name }}</span>
+</nav>
+
+<section class="page-head" {% if submission.status in ('queued', 'grading') %}data-grading-pending data-status-url="/teacher/submissions/{{ submission.id }}/grading-status"{% endif %}>
+  <div>
+    <h1>{{ student.display_name }}</h1>
+    <p class="muted">
+      {{ assignment.title }} · {{ group.name }}
+      · הוגש {{ submission.submitted_at|local_dt }}
+      {% if submission.revision > 1 %}· גרסה {{ submission.revision }}{% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    <span class="badge {{ status_badges.get(submission.status, 'badge-type') }}">
+      {{ status_labels.get(submission.status, submission.status) }}
+    </span>
+    {% if not (result and result.historical) and not reopened %}
+    <form method="post" action="/teacher/submissions/{{ submission.id }}/regrade"
+          data-confirm="להפעיל בדיקה חדשה? הבדיקה הקודמת תוחלף והציון עשוי להשתנות.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-secondary">בדיקה מחדש</button>
+    </form>
+    {% endif %}
+    {% if assignment.exam_config and submission.status in ('queued', 'grading', 'graded', 'deferred') %}
+    {# A student who handed in by accident can be let back in: the answers are
+       kept and the single attempt is suspended until they hand in again. #}
+    <form method="post" action="/teacher/submissions/{{ submission.id }}/reopen"
+          data-confirm="לאפשר לתלמיד/ה להמשיך את המבחן? התשובות שנשמרו ישוחזרו, וההגשה הנוכחית תישאר בהיסטוריה. התלמיד/ה יוכל/ה לערוך ולהגיש שוב כל עוד חלון המבחן פתוח, ואז ההגשה תינעל מחדש.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-secondary">אפשר המשך מבחן</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+
+{% if submission.status == 'reopened' %}
+<p class="flash flash-info">
+  המבחן פתוח מחדש להמשך: התלמיד/ה יכול/ה לערוך את התשובות שנשמרו ולהגיש שוב,
+  כל עוד חלון המבחן פתוח. ההגשה תינעל מחדש אחרי ההגשה הבאה, והציון יוחלף אז.
+</p>
+{% endif %}
+
+{% if job and job.error %}
+<p class="flash flash-{{ 'error' if job.state == 'failed' else 'info' }}">
+  {{ job.error }}
+</p>
+{% endif %}
+
+{% if result %}
+<section class="card grade-card">
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ result.score }}">
+      <span class="score-number">{{ result.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      <h2>משוב בעברית</h2>
+      {% if result.disqualification %}
+      <p><span class="badge badge-warning">ציון קבוע · ההגשה נפסלה</span></p>
+      {% endif %}
+      {% if reopened %}
+      <p class="notice-inline">
+        זהו הציון של ההגשה הקודמת, שנשמרה בהיסטוריה. התלמיד/ה ממשיך/ה כעת את
+        המבחן, והציון יוחלף אחרי ההגשה הבאה.
+      </p>
+      {% endif %}
+      {% if exam_preview %}
+      <p class="notice-inline">
+        זהו הציון של בדיקת המודל האחרונה, שטרם הוחלה על ההגשה.
+      </p>
+      {% endif %}
+      {% if exam_preview_stale %}
+      <p class="notice-inline">
+        יש כאן בדיקת מודל ידנית שטרם הוחלה, אבל הציון למטה עדכן אחריה — הבדיקה
+        האוטומטית כבר רשמה תוצאה חדשה יותר. לכן מוצג הציון העדכן, והבדיקה הישנה
+        לא תיכתב עליו.
+      </p>
+      {% endif %}
+      <p class="feedback-text">{{ result.feedback }}</p>
+      <p class="muted">
+        נבדק {{ result.graded_at|local_dt }}
+        {% if result.historical %}
+        · הועבר מ-Google Classroom
+        {% else %}
+        · מודל <span dir="ltr">{{ result.model }}</span>
+        {% if result.late_penalty %}· ניכוי איחור {{ result.late_penalty }} נק׳{% endif %}
+        · מחוון <span dir="ltr">{{ result.rubric_title }}</span>
+        <span dir="ltr">({{ result.rubric_sha256[:12] }})</span>
+        {% endif %}
+      </p>
+      {% if result.needs_review %}
+      <p class="notice-inline">
+        ה-audit סימן את הבדיקה לסקירה אנושית לפני מסירת הציון.
+      </p>
+      {% elif result.reviewed_at %}
+      <p class="muted">נסקר על ידי המורה {{ result.reviewed_at|local_dt }}</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if result.is_exam and not reopened %}
+{# A whole-paper fixed score: for example a copied exam the teacher disqualifies.
+   The score is locked - a re-check or the model cannot change it - and the reason
+   stays teacher-only. Reversible with "ביטול פסילה". #}
+<section class="card disqualify-card" aria-label="ציון קבוע / פסילת הגשה">
+  <div class="section-head">
+    <h2>ציון קבוע / פסילת הגשה</h2>
+    {% if result.disqualification %}
+    <span class="badge badge-warning">ההגשה נפסלה</span>
+    {% endif %}
+  </div>
+  {% if result.disqualification %}
+  <p class="notice-inline">
+    להגשה הזו נקבע ציון קבוע של <strong>{{ result.disqualification.score }}</strong> מתוך 100.
+    הציון נעול: בדיקה חוזרת או בדיקת מודל לא ישנו אותו, וההגשה לא תיבדק שוב
+    במסך בדיקת ההגשות.
+  </p>
+  {% if result.disqualification.reason %}
+  <p class="muted">סיבת הפסילה (גלוי למורה בלבד): {{ result.disqualification.reason }}</p>
+  {% endif %}
+  {% if result.disqualification.by_name %}
+  <p class="muted">נקבע על ידי {{ result.disqualification.by_name }}</p>
+  {% endif %}
+  <form method="post" action="/teacher/submissions/{{ submission.id }}/disqualify/clear"
+        class="inline-form"
+        data-confirm="לבטל את הפסילה ולהחזיר את הציון האוטומטי? ההגשה תהיה שוב ניתנת לבדיקה.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button button-secondary">ביטול פסילה</button>
+  </form>
+  {% else %}
+  <p class="muted">
+    קבעו ציון קבוע להגשה הזו (למשל 0 לתלמיד/ה שהעתיק/ה). הציון יינעל: בדיקה חוזרת
+    או בדיקת מודל לא ישנו אותו. הסיבה נשמרת למורה בלבד; התלמיד/ה יראה/תראה שההגשה
+    נפסלה ואת הציון הקבוע, בלי הסיבה.
+  </p>
+  <form method="post" action="/teacher/submissions/{{ submission.id }}/disqualify" class="stack"
+        data-confirm="לקבוע ציון קבוע ולנעול את ההגשה? בדיקה חוזרת או מודל לא ישנו את הציון הזה.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="disqualify-score">
+      ציון קבוע (0–100)
+      <input type="number" id="disqualify-score" name="score" min="0" max="100" value="0"
+             inputmode="numeric" step="1" required>
+    </label>
+    <label for="disqualify-reason">
+      סיבה (גלוי למורה בלבד, אופציונלי)
+      <textarea id="disqualify-reason" name="reason" rows="2" maxlength="1000"
+                placeholder="למשל: העתקה מתלמיד/ה אחר/ת"></textarea>
+    </label>
+    <button type="submit" class="button button-primary">פסילת הגשה / קביעת ציון קבוע</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if exam_paper %}
+{# The student sat a personal version in a personal order. Showing the paper
+   here is what makes the per-question points meaningful: the teacher reads the
+   question, the answer and the point box in one place, exactly as the student
+   saw them. #}
+<section class="card exam-review" aria-label="דף המבחן והתשובות">
+  <div class="section-head">
+    <h2>דף המבחן והתשובות</h2>
+    <span class="badge badge-type">{{ exam_version_label }}</span>
+  </div>
+  {% if exam_preview %}
+  <p class="flash flash-info">
+    מציג את בדיקת המודל האחרונה — טרם הוחלה על הציון. הניקוד וההסברים שלכל
+    תשובה הם תוצאת הבדיקה עם המודל. שמירת ניקוד מתחת לשאלה מתקנת את הבדיקה
+    הזו, והתיקון נשמר כדי לכוון את בדיקת המודל הבאה. כדי לקבע את הציון,
+    החילו את הבדיקה ממסך בדיקת ההגשות.
+  </p>
+  {% endif %}
+  <p class="muted">
+    {{ exam_total_points }} נקודות · זו הגרסה והסדר שהתלמיד/ה קיבלו, עם
+    התשובות שהוגשו.
+    {% if reopened %}
+    זו ההגשה הקודמת שנשמרה בהיסטוריה, מוצגת לקריאה בלבד בזמן שהתלמיד/ה
+    ממשיך/ה את המבחן.
+    {% else %}
+    אפשר לשנות את הניקוד מתחת לכל שאלה; השינוי נשמר בהגשה
+    ומופיע אצל התלמיד/ה רק אחרי פרסום התוצאות.
+    {% endif %}
+  </p>
+  {{ review_paper(exam_paper, exam_values, exam_scores, editable=not reopened) }}
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="section-head">
+    <h2>Audit</h2>
+    {% if result.historical %}
+    <span class="badge badge-type">לא רלוונטי</span>
+    {% elif result.audit and result.audit.ok %}
+    <span class="badge badge-published">תקין</span>
+    {% elif result.audit and result.audit.autofixed %}
+    <span class="badge badge-type">תוקן אוטומטית</span>
+    {% elif result.audit %}
+    <span class="badge badge-warning">דורש סקירה</span>
+    {% else %}
+    <span class="badge badge-draft">לא הופעל</span>
+    {% endif %}
+  </div>
+  {% if result.historical %}
+  <p class="muted">
+    הציון יובא מקובץ הציונים של Google Classroom ולא עבר את מנוע הבדיקה,
+    ולכן אין עבורו Audit או הערכת משימות.
+  </p>
+  {% elif result.audit %}
+  <p>{{ result.audit.summary }}</p>
+  <p class="muted">
+    ציון מקורי: {{ result.audit.original_score if result.audit.original_score is not none else '—' }}
+    · ציון סופי: {{ result.audit.final_score if result.audit.final_score is not none else '—' }}
+    · סה״כ ניכויים: {{ result.audit.deductions_total }}
+  </p>
+  {% if result.audit.findings %}
+  <ul class="audit-findings">
+    {% for finding in result.audit.findings %}
+    <li class="audit-finding severity-{{ finding.severity }}">
+      <span class="badge badge-type">{{ finding.severity }}</span>
+      <span class="audit-flag" dir="ltr">{{ finding.flag }}</span>
+      <span>{{ finding.message }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">לא נמצאו ממצאים.</p>
+  {% endif %}
+  {% else %}
+  <p class="muted">ה-audit אינו מופעל בהגדרות המנוע, ולכן אין סטטוס לבדיקה הזו.</p>
+  {% endif %}
+</section>
+
+{% if result.tasks and not exam_paper %}
+{# An exam already shows every question, answer and reason on the paper above;
+   repeating them as a list at the end only buries the detail the teacher is
+   looking for. Ordinary hand-ins keep the list. #}
+<section class="card">
+  <div class="section-head">
+    <h2>הערכת משימות</h2>
+    <span class="count">{{ result.tasks|length }}</span>
+  </div>
+  <ol class="question-list">
+    {% for task in result.tasks %}
+    {% set task_class = {
+      'CORRECT': 'status-ok',
+      'PARTIALLY_CORRECT': 'status-partial',
+      'INCORRECT': 'status-bad',
+      'MISSING': 'status-missing'
+    } %}
+    <li class="question-card">
+      <div class="question-head">
+        <strong>{{ task.task_name }}</strong>
+        <span class="status-chip {{ task_class.get(task.status, 'status-missing') }}">
+          {{ task_status_labels.get(task.status, task.status) }}
+        </span>
+      </div>
+      {% if task.student_answer_found %}
+      <pre class="code-inline" dir="ltr">{{ task.student_answer_found }}</pre>
+      {% endif %}
+      <p class="question-text">{{ task.notes }}</p>
+      {% if result.is_exam and task.key and not exam_paper %}
+      {# The checker is exact, so a typo in copied output or an explanation
+         phrased differently can cost points that the teacher would award.
+         These controls change one question only; the automatic number stays
+         stored so "ביטול התאמה" puts everything back. #}
+      <div class="manual-grade">
+        <div class="manual-grade-head">
+          <span class="muted">
+            ניקוד: {{ task.earned }} מתוך {{ task.points }}
+          </span>
+          {% if task.manual %}
+          <span class="badge badge-warning">הותאם ידנית</span>
+          {% endif %}
+          {% if task.manual and task.manual.by_name %}
+          <span class="muted">על ידי {{ task.manual.by_name }}</span>
+          {% endif %}
+        </div>
+        {% if task.manual %}
+        <p class="muted">
+          הניקוד האוטומטי היה {{ task.manual.auto_points }} מתוך {{ task.points }}.
+          {% if task.manual.note %}הערה: {{ task.manual.note }}{% endif %}
+        </p>
+        <form method="post"
+              action="/teacher/submissions/{{ submission.id }}/questions/{{ task.key }}/reset"
+              class="inline-form"
+              data-confirm="לבטל את ההתאמה ולהחזיר את הניקוד האוטומטי?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="button button-secondary button-small">
+            ביטול התאמה
+          </button>
+        </form>
+        {% endif %}
+        <form method="post"
+              action="/teacher/submissions/{{ submission.id }}/questions/{{ task.key }}/adjust"
+              class="manual-grade-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>
+            ניקוד
+            <input type="number" name="points" min="0" max="{{ task.points }}"
+                   value="{{ task.earned }}" inputmode="numeric" step="1">
+          </label>
+          <label>
+            הערה (אופציונלי)
+            <input type="text" name="note" maxlength="1000"
+                   placeholder="למשל: התכוון ל-19, שגיאת הקלדה">
+          </label>
+          <button type="submit" class="button button-primary button-small">
+            שמירת ניקוד
+          </button>
+          <button type="submit" name="full" value="1"
+                  class="button button-secondary button-small">
+            ניקוד מלא ({{ task.points }})
+          </button>
+        </form>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+{% if result.deductions and not exam_paper %}
+<section class="card">
+  <div class="section-head">
+    <h2>פירוט ניכויים</h2>
+  </div>
+  <ul class="deduction-list">
+    {% for item in result.deductions %}
+    <li>
+      <span class="deduction-points">-{{ item.points_deducted }}</span>
+      <div>
+        <strong>{{ item.task_name }}</strong>
+        <p class="muted">{{ item.reason }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="section-head">
+    <h2>סקירת המורה</h2>
+    {% if result.reviewed_at %}
+    <span class="badge badge-published">נסקר · {{ result.reviewed_at|local_dt }}</span>
+    {% else %}
+    <span class="badge badge-draft">טרם נסקר</span>
+    {% endif %}
+  </div>
+  <form method="post" action="/teacher/submissions/{{ submission.id }}/review" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label for="review-note">הערת סקירה (אופציונלי)</label>
+      <textarea id="review-note" name="note" rows="3" maxlength="5000"
+                placeholder="לדוגמה: הבדיקה נראתה תקינה; הציון נמסר.">{{ result.review_note }}</textarea>
+    </div>
+    <button type="submit" class="button button-primary">סימון ההגשה כנבדקה</button>
+  </form>
+</section>
+{% else %}
+<section class="card">
+  <h2>אין עדיין ציון לגרסה הזו</h2>
+  <p>
+    הבדיקה עדיין בתור או שהתרחשה שגיאה. אפשר להמתין, או להפעיל בדיקה חדשה
+    מהכפתור למעלה.
+  </p>
+</section>
+{% endif %}
+
+{% if submission.text and not exam_paper %}
+<section class="card">
+  <div class="section-head">
+    <h2>הקוד שהוגש</h2>
+  </div>
+  <pre class="code-block" dir="ltr"><code>{{ submission.text }}</code></pre>
+</section>
+{% endif %}
+{% endblock %}

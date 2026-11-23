@@ -1,0 +1,108 @@
+{
+  "assignment_title": "בוחן רבעוני בפייתון - יחידות 1-2 - גרסה ב",
+  "topic": "מבחן רבעוני",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א: שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "multiple_choice",
+          "question": "איזה משמות המשתנים הבאים הוא תקין וחוקי? א) first_name  ב) 1st_name  ג) my#name  ד) name?",
+          "correct_answer": "א (first_name)"
+        },
+        {
+          "id": "q2",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט: print(\"Python\", \"Course\")? א) PythonCourse  ב) Python Course  ג) Python, Course  ד) שגיאת תחביר",
+          "correct_answer": "ב (Python Course)"
+        },
+        {
+          "id": "q3",
+          "type": "multiple_choice",
+          "question": "כיצד כותבים הערה? א) באמצעות //  ב) באמצעות #  ג) באמצעות {}  ד) באמצעות המילה comment",
+          "correct_answer": "ב (באמצעות #)"
+        },
+        {
+          "id": "q4",
+          "type": "multiple_choice",
+          "question": "מהו טיפוס הנתונים של: y = \"100\"? א) int  ב) float  ג) str  ד) bool",
+          "correct_answer": "ג (str)"
+        },
+        {
+          "id": "q5",
+          "type": "multiple_choice",
+          "question": "מה תדפיס: print(type(12.5))? א) <class 'str'>  ב) <class 'int'>  ג) <class 'float'>  ד) 12.5",
+          "correct_answer": "ג (<class 'float'>)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב: מעקב ריצה",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "points = 100\nplayer = \"Dan\"\nprint(\"Player\", player, \"has\", points, \"points\")",
+          "expected_output": "Player Dan has 100 points"
+        },
+        {
+          "id": "q2",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "a = 10\nb = 20\na = b\nb = a + 4\nprint(a)\nprint(b)",
+          "expected_output": "20\n24"
+        },
+        {
+          "id": "q3",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "m = \"500\"\nn = 500\nprint(type(m))\nprint(type(n))",
+          "expected_output": "<class 'str'>\n<class 'int'>"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג: תיקון שגיאות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "debugging",
+          "question": "חיבור מחרוזת ומספר שלם באמצעות +",
+          "code": "score = 90\nprint(\"Your score is \" + score)",
+          "corrected_code": "score = 90\nprint(\"Your score is \" + str(score))"
+        },
+        {
+          "id": "q2",
+          "type": "debugging",
+          "question": "חיבור מחרוזת ומספר שלם באמצעות +",
+          "code": "count = 3\ntotal_weight = count * weight\nweight = 15\nprint(total_weight)",
+          "corrected_code": "weight = 15\ncount = 3\ntotal_weight = count * weight\nprint(total_weight)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד: כתיבת קוד",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "code_writing",
+          "question": "הגדר משתנה עבור שם של סרט אהוב, משתנה עבור שנת היציאה (int), ומשתנה עבור דירוג (float). הדפסה בפקודת print אחת.",
+          "code": "movie_name = \"Inception\"\nrelease_year = 2010\nrating = 8.8\nprint(\"My favorite movie is\", movie_name, \"released in\", release_year, \"with rating\", rating)",
+          "requirements": [
+            "שם סרט",
+            "שנת יציאה כ-int",
+            "דירוג כ-float",
+            "פקודת print אחת עם טקסט"
+          ]
+        }
+      ]
+    }
+  ]
+}

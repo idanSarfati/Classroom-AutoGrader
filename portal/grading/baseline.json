@@ -1,0 +1,66 @@
+{
+  "schema": "portal.grading.baseline/v1",
+  "recorded_at": "2026-11-08T11:08:29.072843+00:00",
+  "recorded_by": "phase-0",
+  "git": {
+    "commit": "324104cbe30ee477562e14d78bc7708cdbfb31bc",
+    "branch": "main",
+    "existing_system_dirty": true,
+    "existing_system_dirty_note": "These modifications pre-date the portal work and were not made or touched by portal/. The per-file hashes below pin the exact bytes the portal was built against."
+  },
+  "python": "3.13.2",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "files": {
+    "app.py": "f88ce04172736904c1b923180c08cd0187bb066dd2c74ab94ae36a6609f586b1",
+    "config/settings.py": "f289eacd71d1fb3b6ac0738d2b29bf30a811c6afe118a05c273535229ecd68d1",
+    "src/code_checks.py": "0d62574bae2630dc6e94dbf900e368037e28cd8ad6a004d5c2b1c839672b4269",
+    "src/evaluator/__init__.py": "b05399996e7f74d0da88913a9f3a1dd779156250c271810b9c34c281c0f63f1b",
+    "src/evaluator/audit.py": "e921d882ad520c01cae28291fde3c220409a3d31b2b0c06356ca3c75d5125cea",
+    "src/evaluator/batch.py": "f5b02c535eb9ddbaa37a5f0bb92d98997b3737dc2a01940310d6ff36549065dd",
+    "src/evaluator/config.py": "73e881e3790453673d7a61fd63d3fd8abe8a5bfa51ad15d82cb465ccb5dc578e",
+    "src/evaluator/core.py": "6e7546e1db8c377b1113d79864fa085e68613f6b6f942ab748933f20bf5e2ef8",
+    "src/evaluator/errors.py": "86d79ce138b7f005f01546216c158a0776680502adbe2722dd02869d9c996d22",
+    "src/evaluator/pacer.py": "473eb42a4cf3699a5efd5b6c255926d583f4466186a3076a8f850f505c9fe367",
+    "src/evaluator/parsing.py": "8b211c0c128efadbf493cd0e2c2e5eeb9cd4939321ba66c42e1908df7dd974ba",
+    "src/evaluator/prompts.py": "b80bf2505d6c1e8c0b66aba901ccdcaa7c498de614dc50f79ca99757e3250ec9",
+    "src/evaluator/schema.py": "a3865bb1ce8038f5603cf9e69ded0ac70a76ee7d833d3e948570c6e361a49091",
+    "src/evaluator/transport.py": "a9bb4437aa04cdf0578d0b447d39b30b482f07244a0379f45a3ce137a6f7ebb2",
+    "src/grade_audit.py": "cb0c2d0a2a310de04a2b3bfd08d9da93394cd4e4825c3331c74729f5dc456cd3",
+    "src/late_policy.py": "0ceb1ab337948f46771708e2817013536fb7e5f5a32ef6667df3e7ecd0e28bd2",
+    "src/llm_evaluator.py": "808fc02eff82cea7341bfb50d979a7d7ba0819eb1a4e1fa73f21e40e52c8e26c",
+    "src/llm_router.py": "be116e17516d9f1bb69de35df8d395a57aa480495c972e24a99cc6b1abba93cd",
+    "src/main.py": "1128ad5c616fcf480c0ce91d5fe2a4eecaf3268f6671cf984c0e62fd4b5e3c80",
+    "src/models.py": "6f8cac35c91f44ca2203c5c22e64eb4dae76a8dcecd09218b523f1a621da78f6",
+    "src/seams.py": "ef26bcf06e97cc707ba93f5b50d3dfcef0f6cde23b2ce882af52070a493d14e4"
+  },
+  "constants": {
+    "temperature": 0.2,
+    "max_tokens": 800,
+    "max_doc_chars": 6000,
+    "reasoning_effort": "none",
+    "stages": [
+      "json_schema",
+      "json_object",
+      "text"
+    ],
+    "eval_pause_seconds": 2.0,
+    "default_late_penalty_points": 10,
+    "prompt_calls_submission_google_doc": true,
+    "configured_model_for_information_only": "qwen/qwen3.8-27b"
+  },
+  "test_baseline": {
+    "command": "python -m pytest tests -q",
+    "passed": 530,
+    "failed": 13,
+    "scope": "tests/ only; root pytest collection stops on src/test_script.py (null bytes) - see the plan §1.9",
+    "note": "The 13 failures were measured before the portal existed and are pre-existing/environmental. They are not caused by portal/ and were not modified."
+  },
+  "invariants": {
+    "adapter": "portal/grading/adapter.py",
+    "engine_entrypoint": "src.evaluator.core:evaluate_student_submission",
+    "submission_text": "passed verbatim; no trimming or escaping",
+    "prompt": "unchanged; still says 'Google Doc' by design",
+    "late_policy": "src.late_policy.penalty_for with late_state=None, is_late=None, first_submitted_at locked at the first portal hand-in",
+    "audit": "last_audit_for popped once, immediately, same thread"
+  }
+}

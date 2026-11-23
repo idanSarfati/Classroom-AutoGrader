@@ -1,0 +1,16 @@
+# Caddy terminates HTTPS and forwards to uvicorn on the loopback interface.
+# Replace the first line with the hostname of this server (a DuckDNS name such
+# as idan-python.duckdns.org, or a domain you own). Caddy obtains and renews
+# the Let's Encrypt certificate automatically once the name points here and
+# ports 80/443 are open.
+
+classroom.example.duckdns.org {
+	encode gzip
+
+	# Student answers travel over this connection; keep browsers on HTTPS.
+	header {
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	reverse_proxy 127.0.0.1:8000
+}

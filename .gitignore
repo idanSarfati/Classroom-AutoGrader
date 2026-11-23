@@ -25,3 +25,23 @@ streamlit_secrets.toml
 
 # Generated grade exports (contain student names/grades)
 exports/
+
+# Scratch / throwaway working dirs (may contain student data)
+_scratch/
+scratchpad/
+
+# Local backups and data archives (contain secrets + student data)
+_backups/
+*.tar.gz
+*.zip
+
+# Portal-private keys and data (belt-and-suspenders; also in portal/.gitignore)
+portal/data/deploy_key
+portal/data/deploy_key.pub
+portal/data/oci_api_key
+portal/data/oci_api_key.pub
+portal/data/oci_api_key_pem.pub
+portal/data/secret_key
+portal/data/google_token.json
+portal/data/*.db
+portal/data/*.tar.gz

@@ -1,0 +1,4256 @@
+/* Portal shell: mobile-first, Hebrew RTL. No external fonts or CDNs - the
+   portal must work on a school network without internet access. */
+
+/* The code IDE typeface ships with the portal (SIL OFL, see
+   static/fonts/OFL.txt), so it renders the same on every machine. */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/static/fonts/jetbrains-mono-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/static/fonts/jetbrains-mono-latin-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-soft: #eef3fa;
+  --ink: #172033;
+  --muted: #5d6b82;
+  --line: #d9e2ef;
+  --primary: #1f5fae;
+  --primary-dark: #174a89;
+  --primary-soft: #e5effb;
+  --success: #1d7a4f;
+  --success-soft: #e4f5ec;
+  --danger: #b42335;
+  --danger-soft: #fdecef;
+  --warning: #8a5a00;
+  --warning-soft: #fff4d8;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+  --tap: 44px;
+  --code-font: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas,
+    ui-monospace, SFMono-Regular, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Segoe UI", "Noto Sans Hebrew", "Arial Hebrew", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0 0 0.5rem;
+}
+
+h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+.container {
+  width: 100%;
+  max-width: 980px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: -999px;
+  top: 8px;
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  z-index: 20;
+}
+
+.skip-link:focus {
+  inset-inline-start: 16px;
+}
+
+/* ---------------------------------------------------------------- header */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(243, 246, 251, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+
+.header-row {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 8px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+.nav-link {
+  min-height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+}
+
+.who {
+  color: var(--muted);
+}
+
+.inline-form {
+  display: inline;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- main */
+
+main.container {
+  flex: 1;
+  padding-block: 20px 40px;
+}
+
+.site-footer {
+  padding-block: 18px 26px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-block: 6px 18px;
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-block: 4px 10px;
+}
+
+/* Class screen tabs: one bar for the merged content list and the roster.
+   Two equal taps on a phone, wrapped in a soft track so the active tab is
+   obvious without a separate page title. */
+.class-tabs {
+  display: flex;
+  gap: 4px;
+  margin-block: 0 18px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.class-tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border-radius: calc(var(--radius-sm) - 3px);
+  color: var(--muted);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.class-tab:hover {
+  color: var(--ink);
+}
+
+.class-tab.is-active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.class-tab.is-active .count {
+  background: var(--surface-soft);
+}
+
+.class-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin: 6px 0 0;
+}
+
+/* ---------------------------------------------------------------- cards */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-block-end: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.class-card {
+  display: block;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.class-card:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgba(23, 32, 51, 0.13);
+}
+
+.class-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.class-card h2 {
+  margin: 0;
+}
+
+.code-chip {
+  display: inline-block;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.stat-row {
+  display: flex;
+  gap: 22px;
+  margin: 16px 0 10px;
+}
+
+.stat-row dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.stat-row dd {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.card-cta {
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding-block: 34px;
+}
+
+.empty-state .button {
+  margin-top: 8px;
+}
+
+.notice-card {
+  border-inline-start: 4px solid var(--primary);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-block-end: 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.count {
+  display: inline-block;
+  min-width: 1.8em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- forms */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+label {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(31, 95, 174, 0.35);
+  outline-offset: 2px;
+}
+
+.ltr-input,
+.ltr-inline {
+  direction: ltr;
+  text-align: left;
+}
+
+.ltr-inline {
+  unicode-bidi: isolate;
+}
+
+/* The password field keeps its own toggle button inside the control. The
+   input stays LTR; only the button sits at the inline end of the field. */
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-inline-end: 52px;
+}
+
+.password-toggle {
+  position: absolute;
+  inset-inline-end: 4px;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  color: var(--ink);
+}
+
+.password-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.password-toggle .icon-eye-off,
+.password-toggle[aria-pressed="true"] .icon-eye {
+  display: none;
+}
+
+.password-toggle[aria-pressed="true"] .icon-eye-off {
+  display: block;
+}
+
+.row-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.row-form input {
+  flex: 1 1 220px;
+}
+
+.row-form.compact {
+  margin-top: 10px;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.checkbox-row input {
+  width: 20px;
+  min-height: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+.form-panel {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 10px 16px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.button:hover {
+  text-decoration: none;
+  filter: brightness(0.98);
+}
+
+.button-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.button-primary:hover {
+  background: var(--primary-dark);
+}
+
+.button-secondary {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.button-quiet {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.button-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: #f3c4cc;
+}
+
+.button-block {
+  width: 100%;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 6px;
+  min-height: var(--tap);
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.danger-text {
+  color: var(--danger);
+}
+
+.head-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.inline-details {
+  position: relative;
+}
+
+.inline-details[open] .row-form {
+  position: static;
+}
+
+details.disclosure {
+  margin-top: 14px;
+}
+
+details summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  width: auto;
+}
+
+details summary::-webkit-details-marker {
+  display: none;
+}
+
+details[open] > summary {
+  margin-bottom: 10px;
+}
+
+/* ---------------------------------------------------------------- lists */
+
+.person-list,
+.assignment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.person-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.person-list li:first-child {
+  border-top: 0;
+}
+
+.assignment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.assignment-row:first-child {
+  border-top: 0;
+}
+
+.assignment-main {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.assignment-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assignment-link {
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+
+.meta {
+  font-size: 0.85rem;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The publish panel opens inline in the assignment row. Once open it takes a
+   full row so the date field stays wide enough to edit on a phone. */
+.publish-disclosure[open] {
+  flex-basis: 100%;
+}
+
+.publish-panel {
+  max-width: 420px;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.badge-published {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* Teacher approval is a deliberate human sign-off, so it reads stronger than
+   the soft "published" badge: solid success green with white text. */
+.badge-approved {
+  background: var(--success);
+  color: #fff;
+}
+
+.badge-draft {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.badge-new {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+
+/* ---------------------------------------------------------------- flash */
+
+.flash {
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-block-end: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.flash-success {
+  background: var(--success-soft);
+  border-color: #bfe6d1;
+  color: #145c3b;
+}
+
+.flash-error {
+  background: var(--danger-soft);
+  border-color: #f3c4cc;
+  color: #8d1c2c;
+}
+
+.flash-info {
+  background: var(--primary-soft);
+  border-color: #cfe0f7;
+  color: var(--primary-dark);
+}
+
+/* ---------------------------------------------------------------- auth */
+
+.auth-shell {
+  display: grid;
+  place-items: center;
+  min-height: 55vh;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 430px;
+  padding: 26px 20px;
+}
+
+.auth-card h1 {
+  margin-bottom: 6px;
+}
+
+.error-code {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+}
+
+/* ---------------------------------------------------------------- lessons */
+
+.lesson-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lesson-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-block: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.lesson-row:first-child {
+  border-top: 0;
+}
+
+.lesson-main {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.lesson-link {
+  font-weight: 700;
+  font-size: 1.02rem;
+}
+
+.button-small {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 1rem;
+}
+
+.button[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------- slides */
+
+#slide-viewer {
+  /* Fallback for a full page load to ?slide=N#slide-viewer (no JavaScript):
+     the two-row mobile header is ~109px tall. app.js measures it exactly. */
+  scroll-margin-top: 124px;
+}
+
+.slide-viewer {
+  padding: 22px 18px 26px;
+}
+
+.slide-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-block-end: 18px;
+  font-size: 0.86rem;
+}
+
+.progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+
+.progress-value {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
+.slide-title {
+  font-size: clamp(1.25rem, 5vw, 1.6rem);
+  margin-block-end: 14px;
+}
+
+.slide-body {
+  font-size: 1.04rem;
+  line-height: 1.8;
+}
+
+.slide-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block: 4px 16px;
+}
+
+.slide-nav .button {
+  min-width: 96px;
+}
+
+.slide-nav-spacer {
+  width: 1px;
+}
+
+.done-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-weight: 700;
+}
+
+.slide-index-card {
+  padding: 14px 18px;
+}
+
+.slide-index {
+  margin: 0;
+  padding-inline-start: 1.2rem;
+  display: grid;
+  gap: 6px;
+}
+
+.slide-index-link {
+  display: block;
+  padding: 6px 4px;
+  border-radius: 8px;
+}
+
+.slide-index-link.current {
+  font-weight: 700;
+  background: var(--primary-soft);
+}
+
+.slide-admin {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  background: var(--surface);
+}
+
+.slide-admin h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.code-block {
+  direction: ltr;
+  text-align: left;
+  background: #101828;
+  color: #e7eefc;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.code-block code {
+  font: inherit;
+}
+
+/* ------------------------------------------------------- redacted rubric */
+
+.hidden-answers-chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.weight-chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 10px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rubric-section {
+  margin-block-start: 18px;
+  padding-block-start: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.rubric-section:first-of-type {
+  border-top: 0;
+  padding-block-start: 0;
+}
+
+.rubric-section h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.question-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.question-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.question-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-block-end: 8px;
+}
+
+.question-id {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 7px;
+  unicode-bidi: isolate;
+}
+
+.badge-type {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.question-text {
+  margin: 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.question-card .code-block {
+  margin-block: 10px 0;
+}
+
+/* Teacher override for one exam question: the checker stays the default, and
+   a manual number is a visible, reversible exception. */
+.manual-grade {
+  margin-block-start: 12px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.manual-grade-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-grade-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.manual-grade-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.manual-grade-form input[type="number"] {
+  width: 6rem;
+}
+
+.manual-grade-form input[type="text"] {
+  min-width: 12rem;
+}
+
+/* Teacher review of an exam hand-in: the student's own paper, read-only, with
+   one point box under each question. The answer sits on its own panel so it
+   never reads as part of the question text. */
+.exam-review-answer {
+  margin-block-start: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.exam-review-answer-label {
+  display: block;
+  margin-block-end: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.exam-review-code {
+  margin-block: 0;
+}
+
+.exam-review-line {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.exam-review-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.exam-review-empty {
+  margin: 0;
+  font-style: italic;
+}
+
+/* Why an answer earned what it earned: one block under each answer, so the
+   reason is read where the answer is. Lost points are marked, full marks stay
+   quiet. */
+.exam-part-mark {
+  margin-block-start: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--success);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.exam-part-lost {
+  border-inline-start-color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.exam-part-mark-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.exam-part-name {
+  font-weight: 600;
+}
+
+.exam-part-points {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.exam-part-delta {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.exam-part-note {
+  margin: 6px 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.exam-question-note {
+  margin-block-start: 12px;
+  border-inline-start-color: var(--primary);
+}
+
+/* A question the teacher scored by hand: its part marks are the original
+   automatic breakdown, superseded by the manual total. Dim them and label the
+   numbers so they never read as the current score. */
+.exam-part-superseded {
+  border-inline-start-color: var(--line);
+  background: var(--surface);
+  opacity: 0.7;
+}
+
+.exam-part-superseded .exam-part-name {
+  font-weight: 500;
+}
+
+.exam-part-auto {
+  color: var(--muted);
+}
+
+.exam-part-auto-num {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.exam-part-auto-badge {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.exam-manual-parts-note {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+}
+
+/* Per-part score box: a multi-part question grades each part under its own
+   answer. It nests inside the answer panel, so it stays compact and reads as a
+   sub-editor of the part, not a second question total. */
+.exam-part-score {
+  margin-block-start: 10px;
+  padding: 10px;
+  gap: 8px;
+}
+
+.exam-part-score .manual-grade-form input[type="number"] {
+  width: 5rem;
+}
+
+.exam-review-choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exam-review-choices li {
+  display: flex;
+  gap: 8px;
+}
+
+.exam-review-choice {
+  margin: 4px 0 0;
+}
+
+.exam-review-item .manual-grade {
+  background: var(--surface-soft);
+}
+
+/* Score-save landing anchors: after a save the server redirects back with
+   #question-… / #part-…, so the teacher stays on the question they marked.
+   Leave room for the sticky header; app.js measures it and sets the exact
+   margin, and this is the no-JavaScript fallback (two-row mobile header). */
+.exam-review-item,
+.exam-review-item .worksheet-part {
+  scroll-margin-top: 124px;
+}
+
+.criteria {
+  margin-block-start: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.criteria h4 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+}
+
+.criteria ul {
+  margin: 0;
+  padding-inline-start: 1.2rem;
+  font-size: 0.92rem;
+}
+
+/* ------------------------------------------------- lesson x.2 worksheet */
+
+.notes-disclosure {
+  padding: 14px 18px;
+}
+
+.notes-disclosure summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.notes-disclosure[open] summary {
+  margin-block-end: 10px;
+}
+
+.worksheet-hint {
+  margin-block: 0 12px;
+}
+
+.worksheet-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block: 4px 12px;
+}
+
+.worksheet-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block: 20px 10px;
+  padding-block-start: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.worksheet-section-head:first-of-type {
+  border-top: 0;
+  padding-block-start: 0;
+  margin-block-start: 4px;
+}
+
+.worksheet-section-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.worksheet-form {
+  gap: 14px;
+}
+
+.worksheet-question {
+  background: var(--surface);
+  scroll-margin-top: 84px;
+}
+
+.question-number {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.worksheet-title {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+}
+
+.answer-label {
+  display: block;
+  margin-block: 14px 6px;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.worksheet textarea[data-answer-editor] {
+  min-height: 110px;
+}
+
+.answer-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block: 8px;
+}
+
+.answer-tools .hint {
+  margin: 0;
+}
+
+.worksheet .terminal,
+.worksheet .sandbox-stdin {
+  margin-block-start: 8px;
+}
+
+.legacy-submission {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--surface-soft);
+}
+
+.legacy-submission summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.legacy-text {
+  max-height: 220px;
+  margin-block: 10px 6px;
+}
+
+/* ------------------------------------------------- lesson x.3 mixed sheet */
+
+.worksheet-prompt {
+  white-space: pre-line;
+}
+
+.worksheet-item + .worksheet-item {
+  margin-block-start: 14px;
+}
+
+.worksheet-part + .worksheet-part {
+  margin-block-start: 16px;
+  padding-block-start: 14px;
+  border-top: 1px dashed var(--line);
+}
+
+.part-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-block: 12px 8px;
+}
+
+.part-label {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.part-prompt {
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.worksheet-code {
+  margin-block: 8px 10px;
+}
+
+.code-line-input,
+.table-input,
+.short-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 9px 11px;
+  font: inherit;
+}
+
+.code-line-input,
+.table-input {
+  direction: ltr;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.92rem;
+}
+
+.code-line-input:focus,
+.table-input:focus,
+.short-input:focus {
+  outline: 2px solid var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.short-input {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.worksheet-table-wrap {
+  margin-block: 10px 4px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  -webkit-overflow-scrolling: touch;
+}
+
+.worksheet-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.worksheet-table th {
+  background: var(--surface-soft);
+  font-size: 0.86rem;
+  text-align: start;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.worksheet-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.worksheet-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.worksheet-table .given {
+  color: var(--muted);
+  background: var(--surface-soft);
+}
+
+.worksheet-table .given pre {
+  margin: 0;
+  direction: ltr;
+  text-align: left;
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.worksheet-table .table-input {
+  min-width: 110px;
+  padding: 6px 8px;
+  font-size: 0.88rem;
+}
+
+.worksheet-choice {
+  margin-block-start: 10px;
+}
+
+.choice-row {
+  padding-block: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.choice-row:first-child {
+  border-top: 0;
+  padding-block-start: 0;
+}
+
+.choice-statement {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.choice-index {
+  flex: none;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.choice-prompt {
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.choice-code {
+  margin: 6px 0 0;
+  direction: ltr;
+  text-align: left;
+  background: #0d1117;
+  color: #e6edf3;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.choice-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 8px;
+  padding-inline-start: 24px;
+}
+
+.choice-option {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.choice-option input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.choice-option span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 4px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9rem;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.choice-option input:checked + span {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.choice-option input:focus-visible + span {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.choice-option input:disabled + span {
+  opacity: 0.65;
+}
+
+.submit-bar {
+  position: sticky;
+  bottom: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.submit-bar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.submit-bar .button-primary {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .submit-bar .button-primary {
+    width: 100%;
+  }
+}
+
+.criteria li {
+  margin-block: 3px;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------- exam paper */
+
+.exam-card {
+  border-inline-start: 4px solid var(--primary);
+  background: var(--surface-soft);
+}
+
+.exam-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.94rem;
+}
+
+.exam-facts li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+/* Personal make-up windows: a short list of grants under the class window. */
+.exam-grants {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.exam-grants li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+.personal-window {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--line);
+}
+
+.personal-window h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+/* The make-up picker reuses the model-check row styles, but a whole class can
+   be 30+ names: keep the list in a scroll box so the two time fields and the
+   save button stay reachable on a phone. */
+.personal-pick-list {
+  max-height: 260px;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+
+/* When a pending grade finishes while the student is still typing, the poller
+   appends this note instead of reloading: the result waits behind one button. */
+.grading-done-note {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #d9dee7);
+}
+.grading-done-note p {
+  margin: 0 0 8px;
+}
+
+/* The exam clock follows the student down the page: answers are long, and the
+   time left until the exam closes has to stay visible while they scroll. */
+.exam-clock {
+  position: sticky;
+  top: var(--sticky-header, 64px);
+  z-index: 9;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.exam-clock-title {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.exam-clock-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 1.35rem;
+  color: var(--primary-dark);
+  /* Clock digits stay in reading order inside the RTL page. */
+  direction: ltr;
+}
+
+.exam-clock-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.exam-clock.is-soon {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.exam-clock.is-soon .exam-clock-title,
+.exam-clock.is-soon .exam-clock-time,
+.exam-clock.is-over .exam-clock-time {
+  color: var(--danger);
+}
+
+.exam-locked {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+/* Exam hand-in confirmation: a modal so the moment "handed in" is unmistakable.
+   It carries no score - the teacher publishes that separately. */
+.exam-submitted-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.exam-submitted-dialog::backdrop {
+  background: rgba(23, 32, 51, 0.45);
+}
+
+.exam-submitted-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px;
+}
+
+.exam-submitted-body h2 {
+  margin: 0;
+  color: var(--primary-dark);
+}
+
+.exam-submitted-body p {
+  margin: 0;
+}
+
+.exam-submitted-body .button {
+  align-self: flex-start;
+  margin-top: 6px;
+}
+
+/* A read-only snippet is part of the question, not an answer: it sits on the
+   same muted paper as the rest of the prompt. */
+.worksheet-given {
+  background: var(--surface-soft);
+  color: var(--text);
+  border: 1px dashed var(--line);
+}
+
+.code-plain-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #0d1117;
+  color: #e6edf3;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  direction: ltr;
+  text-align: left;
+  resize: vertical;
+}
+
+.code-plain-input:focus {
+  outline: 2px solid var(--primary-soft);
+  border-color: var(--primary);
+}
+
+/* ---------------------------------------------------------------- desktop */
+
+@media (min-width: 640px) {
+  .container {
+    padding-inline: 24px;
+  }
+
+  .card {
+    padding: 22px;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------- imported content */
+
+.slide-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.rich-text {
+  white-space: normal;
+}
+
+.rich-text > *:first-child {
+  margin-block-start: 0;
+}
+
+.rich-text > *:last-child {
+  margin-block-end: 0;
+}
+
+.rich-text h1,
+.rich-text h2,
+.rich-text h3,
+.rich-text h4 {
+  margin-block: 1.1em 0.45em;
+  line-height: 1.35;
+}
+
+.rich-text p,
+.rich-text ul,
+.rich-text ol,
+.rich-text blockquote {
+  margin-block: 0.55em;
+}
+
+.rich-text ul,
+.rich-text ol {
+  padding-inline-start: 1.4em;
+}
+
+.rich-text table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 0.8em;
+  font-size: 0.94rem;
+}
+
+.rich-text th,
+.rich-text td {
+  border: 1px solid var(--line);
+  padding: 7px 9px;
+  text-align: start;
+  vertical-align: top;
+}
+
+.rich-text img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+.rich-text pre,
+.rich-text code {
+  direction: ltr;
+  text-align: left;
+}
+
+.import-attachments {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.import-attachments li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+.media-list a {
+  font-weight: 600;
+}
+
+.import-item h2 {
+  font-size: 1.08rem;
+  margin: 0;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-block: 8px 24px;
+}
+
+/* ------------------------------------------------ classroom content picker */
+
+.selection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.selection-row {
+  padding-block: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.selection-row:first-child {
+  border-top: 0;
+  padding-block-start: 4px;
+}
+
+.selection-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.selection-head .checkbox-row {
+  font-weight: 700;
+}
+
+.selection-controls {
+  margin-block-start: 10px;
+}
+
+.selection-controls > [hidden] {
+  display: none;
+}
+
+.picker-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 2px 14px;
+}
+
+.picker-jump a {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+.picker-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-block: 8px 4px;
+}
+
+.picker-filter label {
+  flex: 0 0 auto;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.picker-filter input {
+  flex: 1 1 auto;
+}
+
+/* Course-content tree toolbar: the quick filter keeps the first row and the
+   open/close-all buttons wrap onto their own line, so the search field stays
+   full width on a phone. */
+.course-tree-bar {
+  flex-wrap: wrap;
+}
+
+.course-tree-bar .row-actions {
+  flex: 1 1 100%;
+}
+
+.picker-group {
+  border-top: 1px solid var(--line);
+  margin-block-start: 12px;
+  padding-block-start: 2px;
+}
+
+.picker-group:first-of-type {
+  border-top: 0;
+  margin-block-start: 8px;
+}
+
+.picker-group-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  list-style: none;
+}
+
+.picker-group-summary::-webkit-details-marker {
+  display: none;
+}
+
+.picker-group-summary::before {
+  content: "▸";
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.picker-group[open] .picker-group-summary::before {
+  content: "▾";
+}
+
+.picker-group-name {
+  flex: 1 1 auto;
+}
+
+.picker-group-summary [hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------ submissions/grading */
+
+.badge-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.badge-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.submission-card textarea[data-code-editor] {
+  min-height: 260px;
+}
+
+.notice-inline {
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  border: 1px solid #cfe0f7;
+  margin-block: 8px 14px;
+  font-size: 0.92rem;
+}
+
+.disqualification-notice {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-soft);
+}
+
+.disqualification-notice .badge {
+  margin-inline-end: 6px;
+}
+
+.grade-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.grade-summary-main {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.score-ring {
+  flex: 0 0 auto;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: var(--success-soft);
+  color: var(--success);
+  border: 3px solid #bfe6d1;
+}
+
+.score-number {
+  font-size: 2.3rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.score-of {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.feedback-text {
+  font-size: 1.02rem;
+  line-height: 1.7;
+  margin-block: 4px 10px;
+}
+
+.status-chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.status-ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.status-partial {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.status-bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.status-missing {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.deduction-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.deduction-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.deduction-list p {
+  margin: 4px 0 0;
+}
+
+.deduction-points {
+  flex: 0 0 auto;
+  min-width: 42px;
+  text-align: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.grading-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.grading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.grading-main {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.audit-findings {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.audit-finding {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  font-size: 0.9rem;
+}
+
+.audit-finding.severity-error {
+  background: var(--danger-soft);
+}
+
+.audit-finding.severity-warning {
+  background: var(--warning-soft);
+}
+
+.audit-flag {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.code-inline {
+  direction: ltr;
+  text-align: left;
+  background: var(--surface-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin: 6px 0;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.86rem;
+  white-space: pre-wrap;
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+/* Phase 4 — student code playground */
+
+.sandbox-stdin {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  background: var(--surface-soft);
+}
+
+.sandbox-stdin summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.sandbox-stdin label {
+  display: block;
+  margin-top: 10px;
+}
+
+.sandbox-hint {
+  margin: 0;
+}
+
+/* ------------------------------------------------------- code IDE (Phase 3)
+
+   A single dark frame: toolbar, highlighted code with line numbers, and the
+   output console docked at the bottom. The <textarea> is the real input (and
+   the form value); the highlighted <pre> sits behind it and is kept in sync
+   by app.js. */
+
+.ide {
+  direction: ltr;
+  text-align: left;
+  margin-block: 10px 6px;
+  border: 1px solid #30363d;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0d1117;
+  box-shadow: 0 10px 24px -18px rgba(13, 17, 23, 0.9);
+}
+
+.ide-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  font-family: var(--code-font);
+  font-size: 0.8rem;
+  color: #8b949e;
+}
+
+.ide-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.ide-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+
+.ide-dots i:nth-child(2) {
+  background: #febc2e;
+}
+
+.ide-dots i:nth-child(3) {
+  background: #28c840;
+}
+
+.ide-filename {
+  color: #c9d1d9;
+  font-weight: 600;
+}
+
+.ide-meta {
+  margin-inline-start: auto;
+  color: #6e7681;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ide-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #238636;
+  border-radius: 6px;
+  background: #238636;
+  color: #ffffff;
+  padding: 5px 12px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.ide-run:hover {
+  background: #2ea043;
+  border-color: #2ea043;
+}
+
+.ide-run:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.ide-run-icon {
+  font-size: 0.65em;
+  line-height: 1;
+}
+
+.ide-editor {
+  display: flex;
+  align-items: stretch;
+  height: 260px;
+  background: #0d1117;
+}
+
+.ide-gutter {
+  flex: 0 0 auto;
+  width: 3.1em;
+  padding: 12px 8px 12px 0;
+  overflow: hidden;
+  border-inline-end: 1px solid #21262d;
+  background: #0d1117;
+  color: #6e7681;
+  font-family: var(--code-font);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+}
+
+.ide-code {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.ide-highlight,
+.ide-input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  font-family: var(--code-font);
+  font-size: 0.86rem;
+  line-height: 1.6;
+  letter-spacing: 0;
+  white-space: pre;
+  overflow-wrap: normal;
+  tab-size: 4;
+}
+
+.ide-highlight {
+  overflow: hidden;
+  color: #e6edf3;
+  background: transparent;
+  pointer-events: none;
+}
+
+/* The browser's default ``code { font-family: monospace }`` rule applies to
+   the inner element and beats inheritance from the <pre>, so the coloured text
+   was drawn in Courier while the invisible textarea used JetBrains Mono. The
+   caret follows the textarea's metrics, so it drifted one character to the
+   right by the end of a line. Inherit every metric the two layers must share. */
+.ide-highlight code {
+  font: inherit;
+  letter-spacing: inherit;
+  tab-size: inherit;
+  white-space: inherit;
+}
+
+.ide-input {
+  width: 100%;
+  height: 100%;
+  resize: none;
+  overflow: auto;
+  background: transparent;
+  color: transparent;
+  caret-color: #e6edf3;
+  outline: none;
+  -webkit-text-fill-color: transparent;
+}
+
+.ide-input::placeholder {
+  color: #6e7681;
+  -webkit-text-fill-color: #6e7681;
+}
+
+.ide-input::selection {
+  background: rgba(56, 139, 253, 0.35);
+}
+
+.ide:focus-within {
+  border-color: #388bfd;
+  box-shadow: 0 0 0 3px rgba(56, 139, 253, 0.18);
+}
+
+/* Python token colours, GitHub-dark flavoured. */
+.tok-keyword { color: #ff7b72; }
+.tok-string { color: #a5d6ff; }
+.tok-comment { color: #8b949e; font-style: italic; }
+.tok-number { color: #79c0ff; }
+.tok-builtin { color: #d2a8ff; }
+.tok-call { color: #d2a8ff; }
+.tok-def { color: #ffa657; }
+.tok-decorator { color: #d2a8ff; }
+.tok-constant { color: #79c0ff; }
+.tok-operator { color: #c9d1d9; }
+
+.ide-stdin {
+  direction: ltr;
+  text-align: left;
+  margin: 0;
+  padding: 10px 14px 12px;
+  background: #161b22;
+  border-top: 1px solid #30363d;
+}
+
+.ide-stdin summary {
+  color: #c9d1d9;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.ide-stdin label {
+  display: block;
+  margin-block: 8px 4px;
+  color: #8b949e;
+  font-size: 0.78rem;
+}
+
+.ide-stdin textarea {
+  min-height: 54px;
+  background: #0d1117;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  font-family: var(--code-font);
+  font-size: 0.82rem;
+}
+
+.ide-output {
+  border-top: 1px solid #30363d;
+  background: #0d1117;
+  color: #f0f6fc;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.ide-output .terminal-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  direction: ltr;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  padding: 6px 12px;
+}
+
+.ide-output-title {
+  color: #c9d1d9;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.ide-output .terminal-status {
+  margin-inline-start: auto;
+  font-family: var(--code-font);
+  font-size: 0.76rem;
+}
+
+.ide-output .terminal-output {
+  min-height: 2.4em;
+  max-height: 200px;
+  padding: 10px 14px;
+}
+
+.ide-output .terminal-stdout {
+  color: #f0f6fc;
+}
+
+.ide-output .terminal-stdout:empty,
+.ide-output .terminal-stderr:empty {
+  display: none;
+}
+
+.ide-output-empty {
+  direction: ltr;
+  text-align: left;
+  margin: 0;
+  padding: 12px 14px;
+  color: #8b949e;
+  font-size: 0.82rem;
+}
+
+.ide-output-empty[hidden] {
+  display: none;
+}
+
+.ide-output .terminal-stderr {
+  border-top: 1px solid #21262d;
+}
+
+/* Console input row: visible only while a run is waiting for the program. */
+.ide-console-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  direction: ltr;
+  padding: 4px 14px 6px;
+  background: #0d1117;
+  border-top: 1px solid #21262d;
+}
+
+.ide-console-input[hidden] {
+  display: none;
+}
+
+.ide-console-prompt {
+  color: #3fb950;
+  font-family: var(--code-font);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.ide-console-input input {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 30px;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f0f6fc;
+  caret-color: #58a6ff;
+  font-family: var(--code-font);
+  font-size: 0.86rem;
+  direction: ltr;
+  text-align: left;
+}
+
+.ide-console-input input::placeholder {
+  color: #6e7681;
+}
+
+.ide-console-input input:focus {
+  outline: none;
+  box-shadow: inset 0 -1px 0 #58a6ff;
+}
+
+@media (max-width: 560px) {
+  .ide-editor {
+    height: 220px;
+  }
+
+  .ide-toolbar {
+    gap: 7px;
+    padding: 6px 10px;
+  }
+
+  .ide-meta {
+    display: none;
+  }
+}
+
+.terminal {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #10151d;
+  color: #e7edf5;
+  border: 1px solid #273142;
+}
+
+.terminal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #18202c;
+  border-bottom: 1px solid #273142;
+  font-size: 0.85rem;
+}
+
+.terminal-status {
+  color: #aab6c8;
+  font-weight: 600;
+}
+
+.terminal-status-ok {
+  color: #7ee2a8;
+}
+
+.terminal-status-error {
+  color: #ff9b9b;
+}
+
+.terminal-clear {
+  background: transparent;
+  border: 1px solid #3a4658;
+  color: #c7d2e0;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.terminal-clear:hover {
+  border-color: #5a6b83;
+}
+
+.terminal-output {
+  margin: 0;
+  padding: 12px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--code-font);
+  font-size: 0.86rem;
+  line-height: 1.55;
+  direction: ltr;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+}
+
+.terminal-stdout:empty,
+.terminal-stderr:empty {
+  display: none;
+}
+
+.terminal-stderr {
+  color: #ff9b9b;
+  border-top: 1px solid #273142;
+}
+
+.terminal-output[hidden] {
+  display: none;
+}
+
+
+/* ------------------------------------------------------ gradebook (Phase 5) */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.badge-missing {
+  background: var(--surface-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.badge-late {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.gradebook-stats {
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.gradebook-stats > div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  min-width: 108px;
+}
+
+.gradebook-stats dt {
+  font-size: 0.78rem;
+}
+
+.gradebook-stats dd {
+  font-size: 1.3rem;
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.table-scroll:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.matrix-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+}
+
+.matrix-table th,
+.matrix-table td {
+  padding: 8px 10px;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
+}
+
+.matrix-table tr > :first-child {
+  border-inline-start: 0;
+}
+
+.matrix-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-soft);
+}
+
+.matrix-student-col,
+.matrix-student {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  min-width: 168px;
+  background: var(--surface);
+  text-align: start;
+}
+
+.matrix-table thead .matrix-student-col {
+  z-index: 3;
+  background: var(--surface-soft);
+}
+
+.matrix-table tbody tr:hover td,
+.matrix-table tbody tr:hover .matrix-student {
+  background: #f6f9ff;
+}
+
+.matrix-table tbody tr:last-child th,
+.matrix-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.matrix-student a {
+  display: block;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.matrix-username {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.75rem;
+}
+
+.matrix-student .badge {
+  margin-top: 4px;
+  font-size: 0.7rem;
+}
+
+.matrix-assignment {
+  min-width: 136px;
+  max-width: 200px;
+}
+
+.matrix-assignment a {
+  display: block;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.matrix-due {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+
+.matrix-cell {
+  min-width: 112px;
+}
+
+.matrix-score {
+  display: inline-block;
+  min-width: 2.2em;
+  color: var(--primary-dark);
+  font-size: 1.06rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.matrix-score:hover {
+  text-decoration: underline;
+}
+
+.matrix-flags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.matrix-flags .badge {
+  padding: 1px 6px;
+  font-size: 0.68rem;
+}
+
+.matrix-pending,
+.matrix-failed {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.matrix-pending {
+  color: var(--warning);
+}
+
+.matrix-failed {
+  color: var(--danger);
+}
+
+.matrix-cell-failed {
+  background: #fff8f6;
+}
+
+.matrix-missing {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.matrix-average-col {
+  min-width: 78px;
+}
+
+.matrix-average {
+  background: var(--surface-soft);
+  font-weight: 800;
+}
+
+.matrix-foot {
+  background: var(--surface-soft);
+}
+
+.matrix-sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.profile-note {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  background: var(--surface-soft);
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.profile-contact {
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+}
+
+.profile-contact > div {
+  flex: 1 1 150px;
+  min-width: 0;
+  background: var(--surface-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.profile-contact dd {
+  margin-top: 2px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.profile-trend {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-trend li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  background: var(--surface-soft);
+  border-radius: 8px;
+}
+
+.profile-trend .trend-score {
+  flex: 0 0 auto;
+  min-width: 44px;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.profile-trend strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.profile-trend p {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 639px) {
+  .gradebook-stats > div {
+    flex: 1 1 118px;
+  }
+}
+
+/* ---------------------------------------------------------- class expansion */
+
+.sync-summary-head,
+.sync-class-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sync-summary-head h2,
+.sync-class-head h2 {
+  margin: 0;
+}
+
+.sync-hint {
+  margin-top: 10px;
+  line-height: 1.6;
+}
+
+.sync-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.sync-list {
+  display: grid;
+  gap: 14px;
+}
+
+.sync-class {
+  display: grid;
+  gap: 10px;
+}
+
+.sync-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sync-pick input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+.sync-class-name {
+  font-size: 1.1rem;
+}
+
+.sync-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sync-course {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.sync-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.sync-mode select {
+  min-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.sync-stats {
+  margin: 0;
+}
+
+.sync-warning,
+.form-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.sync-warning {
+  background: #fff8e6;
+  color: #7a5200;
+}
+
+.form-error {
+  background: #fff1ef;
+  color: var(--danger);
+}
+
+.sync-details {
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+}
+
+.sync-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.sync-items {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sync-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-soft);
+  border-radius: 8px;
+}
+
+.sync-item-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.sync-item-meta {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 12px;
+}
+
+.sync-actions p {
+  margin: 0;
+  max-width: 46ch;
+  line-height: 1.5;
+}
+
+@media (max-width: 639px) {
+  .sync-mode select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sync-actions .button {
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------- teacher student preview */
+.preview-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: var(--primary-soft);
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+}
+
+.preview-banner-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.preview-banner-main strong {
+  display: block;
+}
+
+.preview-banner-main p {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+}
+
+.preview-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.preview-class-label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.preview-banner select {
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+@media (max-width: 639px) {
+  .preview-banner-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .preview-banner-actions .button,
+  .preview-banner select {
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------- student topic feed */
+
+.badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-block-end: 6px;
+}
+
+.badge-lesson {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.badge-assignment {
+  background: #efe9fb;
+  color: #5b3a99;
+}
+
+.badge-exam {
+  background: #fdf0e3;
+  color: #92520f;
+}
+
+.topic-card .section-head h2 {
+  font-size: 1.12rem;
+}
+
+.feed-row {
+  align-items: flex-start;
+}
+
+.feed-row .button {
+  flex: 0 0 auto;
+}
+
+.topic-block + .topic-block {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.topic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-end: 4px;
+}
+
+.topic-head h3 {
+  margin: 0;
+  font-size: 1.03rem;
+}
+
+/* ------------------------------------------------- one-time password reveal */
+
+/* Shown once, right after a teacher resets a student password. One click
+   selects the whole value so it can be copied without a clipboard prompt. */
+.password-reveal {
+  display: block;
+  direction: ltr;
+  text-align: left;
+  user-select: all;
+  -webkit-user-select: all;
+  cursor: copy;
+  font-family: var(--code-font);
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  padding: 14px 16px;
+  margin-block: 6px;
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+/* Teacher re-check preview: a dry run of the exam key, shown before applying.
+   The numbers are the point of the page, so they stay tabular and readable. */
+.recheck-progress {
+  height: 10px;
+  margin: 12px 0 4px;
+  background: var(--surface-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.recheck-progress .progress-value {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.3s ease;
+}
+
+/* Live model re-check: the card updates in place while the model works through
+   each open question, so a two-minute paper reads as progress, not a freeze. */
+.llm-running-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.llm-running-head h2 {
+  margin: 0;
+}
+
+.llm-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 3px solid var(--surface-soft);
+  border-top-color: var(--primary);
+  animation: llm-spin 0.9s linear infinite;
+}
+
+@keyframes llm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.llm-running-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin: 12px 0 2px;
+  font-weight: 600;
+}
+
+.llm-running-name {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.llm-running-question {
+  margin: 0 0 4px;
+  color: var(--muted);
+  min-height: 1.4em;
+}
+
+.llm-running-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.llm-running-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .llm-spinner {
+    animation: none;
+  }
+}
+
+.recheck-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 14px 0;
+}
+
+.recheck-summary > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 6.5rem;
+}
+
+.recheck-summary strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+
+.recheck-summary span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.recheck-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recheck-row {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.recheck-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.recheck-score {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Old→new score arrow. The page is RTL, so the new score sits to the LEFT of
+   the old one and a plain → would point back at the old grade. Mirror the glyph
+   in RTL so it points at the new grade; it stays → inside any LTR island. */
+.score-arrow {
+  display: inline-block;
+}
+
+[dir="rtl"] .score-arrow {
+  transform: scaleX(-1);
+}
+
+/* Open the student's actual hand-in form in a new tab, so the teacher can
+   compare the model's proposal against the paper without losing this screen.
+   Pushed to the far end of the row; wraps to its own line on a narrow phone. */
+.recheck-view {
+  margin-inline-start: auto;
+}
+
+.recheck-details {
+  margin-top: 6px;
+}
+
+.recheck-details summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 0.95rem;
+}
+
+.recheck-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recheck-questions li {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.recheck-qhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Selective model check: the hand-in picker. Each row is one big tap target so
+   a teacher can tick papers on a phone without aiming at a tiny box. */
+.llm-pick-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.llm-pick-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.llm-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.llm-pick-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.llm-pick-row label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  flex: 1 1 220px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+/* The view-form link lives outside the checkbox label, so opening the paper
+   never ticks the row. It drops below the label on a very narrow screen. */
+.llm-pick-view {
+  flex: 0 0 auto;
+}
+
+.llm-pick-row input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+}
+
+.llm-pick-name {
+  font-weight: 600;
+}
+
+/* Approved hand-ins: the teacher already signed off, so these rows carry no
+   checkbox and wear the approval badge. A soft success tint sets them apart
+   from the selectable pool. Reuses .llm-pick-name and .llm-pick-view. */
+.llm-approved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.llm-approved-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.llm-approved-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  flex: 1 1 220px;
+  padding: 10px 12px;
+  background: var(--success-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+/* Grading-style calibration: the correction ledger by question, each with its
+   distilled profile. Reuses the card/badge/recheck primitives; these rules only
+   add the profile panel and the correction answer line. */
+.calib-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.calib-profile {
+  margin-block-start: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calib-profile-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.calib-profile-text {
+  margin: 0;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.calib-edit summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 0.92rem;
+}
+
+.calib-corrections .calib-answer {
+  flex: 1 1 200px;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ chat
+   Student↔teacher chat: a nav unread badge, the chat tab (conversation list +
+   thread) and the support-style floating bubble on task pages. RTL throughout:
+   my messages sit on the left (flex-end), the other side's on the right. */
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding-inline: 6px;
+  margin-inline-start: 6px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nav-badge.is-hidden {
+  display: none;
+}
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.chat-list {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.chat-conversations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  overflow-x: auto;
+}
+
+.chat-conversations li {
+  flex: 0 0 auto;
+}
+
+.chat-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  min-height: var(--tap);
+  min-width: 140px;
+  max-width: 220px;
+  text-decoration: none;
+  color: var(--ink);
+  border-inline-end: 1px solid var(--line);
+}
+
+.chat-conversation.is-active {
+  background: var(--primary-soft);
+  box-shadow: inset 0 -3px 0 var(--primary);
+}
+
+.chat-conversation-top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chat-conversation-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-conversation-preview {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  min-width: 0;
+}
+
+.chat-main-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.chat-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 52vh;
+  min-height: 240px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.chat-empty {
+  margin: auto;
+  text-align: center;
+}
+
+.chat-msg {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  align-self: flex-start;
+}
+
+.chat-msg-mine {
+  align-self: flex-end;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.chat-msg-context {
+  margin-bottom: 4px;
+}
+
+.chat-context-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.72rem;
+  font-weight: 600;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.chat-msg-mine .chat-context-tag {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.chat-msg-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.chat-msg-time {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: end;
+}
+
+.chat-msg-mine .chat-msg-time {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.chat-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-input {
+  flex: 1 1 200px;
+  min-height: var(--tap);
+  resize: vertical;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.chat-send {
+  min-height: var(--tap);
+}
+
+.chat-status {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  min-height: 1em;
+}
+
+/* The floating bubble: fixed to the bottom-left corner, panel opens above it. */
+.chat-bubble {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.chat-bubble-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 10px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.chat-bubble-toggle:hover {
+  background: var(--primary-dark);
+}
+
+.chat-bubble-icon {
+  flex: 0 0 auto;
+}
+
+.chat-bubble-panel {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: min(360px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.chat-bubble-panel[hidden] {
+  display: none;
+}
+
+.chat-bubble-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-bubble-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.chat-bubble-context {
+  font-size: 0.78rem;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.chat-bubble-close {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat-bubble-panel .chat-thread {
+  height: 300px;
+  min-height: 180px;
+  max-height: 45vh;
+}
+
+.chat-bubble-foot {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+@media (min-width: 720px) {
+  .chat-layout {
+    grid-template-columns: 260px 1fr;
+  }
+
+  .chat-list {
+    border-bottom: none;
+    border-inline-end: 1px solid var(--line);
+  }
+
+  .chat-conversations {
+    flex-direction: column;
+    overflow-x: visible;
+    overflow-y: auto;
+    max-height: 560px;
+  }
+
+  .chat-conversation {
+    max-width: none;
+    border-inline-end: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .chat-conversation.is-active {
+    box-shadow: inset -3px 0 0 var(--primary);
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-bubble-label {
+    display: none;
+  }
+
+  .chat-bubble-toggle {
+    padding: 12px;
+    border-radius: 50%;
+  }
+}
+
+/* ------------------------------------------- automatic exam check activity */
+
+/* A warning tint for the inline notice (paused assignment / model off). */
+.notice-inline.notice-warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border-color: var(--warning-soft);
+}
+
+/* Pending papers and per-run paper outcomes: one soft row per hand-in, the
+   name links to the submission form, the reason sits on its own line so a
+   long Hebrew sentence wraps cleanly on a phone. */
+.auto-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auto-row {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.auto-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.auto-name {
+  font-weight: 600;
+}
+
+.auto-reason {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted, #667085);
+}
+
+/* Run history: native <details> keeps the phone page short; the newest run
+   starts open. The summary line carries time, source and the four counters. */
+.auto-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.auto-run {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.auto-run-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.auto-run-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.auto-run .auto-list {
+  margin: 0;
+  padding: 0 12px 12px;
+}
+
+.auto-run .auto-row {
+  background: transparent;
+}
+
+/* Last-24h flat report: one row per paper the pass touched. Same scrolling
+   frame as the grade matrix (.table-scroll) but start-aligned Hebrew cells,
+   a quiet reason column and tabular times so rows scan cleanly on a phone. */
+.recent-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+}
+
+.recent-table th,
+.recent-table td {
+  padding: 8px 10px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
+}
+
+.recent-table tr > :first-child {
+  border-inline-start: 0;
+}
+
+.recent-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-soft);
+  white-space: nowrap;
+}
+
+.recent-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.recent-table tbody tr:hover td {
+  background: #f6f9ff;
+}
+
+.recent-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted, #667085);
+}
+
+.recent-assignment {
+  min-width: 180px;
+}
+
+.recent-verdict {
+  white-space: nowrap;
+}
+
+.recent-verdict .small {
+  display: block;
+  margin-top: 2px;
+}
+
+.recent-reason {
+  min-width: 200px;
+  font-size: 0.85rem;
+  color: var(--muted, #667085);
+}

@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}בדיקה אוטומטית · {{ app_name }}{% endblock %}
+{% block content %}
+{% set state_badges = {
+  'reviewed': 'badge-published',
+  'waiting': 'badge-warning',
+  'failed': 'badge-missing',
+  'off': 'badge-type',
+  '': 'badge-draft'
+} %}
+{% set outcome_badges = {
+  'written': 'badge-published',
+  'deferred': 'badge-warning',
+  'failed': 'badge-missing',
+  'requeued': 'badge-warning',
+  'off_confirmed': 'badge-type'
+} %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>בדיקה אוטומטית</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>בדיקה אוטומטית</h1>
+    <p class="muted">
+      מה עשתה הבדיקה האוטומטית של המבחנים, הבחנים והמטלות, מה עדיין ממתין ולמה.
+      המסך הזה לצפייה בלבד — הוא לא מפעיל בדיקה ולא משנה ציונים.
+    </p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-quiet" href="/teacher">חזרה לכיתות שלי</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2>איך זה עובד</h2>
+  <p class="muted">
+    כל {{ status.interval_hours }} שעות המערכת בודקת מחדש עד {{ status.batch_size }} הגשות
+    (מבחנים ובחנים קודם, ובהם הוותיקות קודם), ואחריהן מטלות רגילות
+    שהבדיקה שלהן נכשלה — ושומרת תוצאה שהושלמה, בלי לפרסם לתלמידים.
+    הגשות שכבר בדקת ואישרת, או הגשות שנפסלו, לא נבדקות שוב.
+    גם הגשות מבחן שנקדו לפני שבדיקת המודל הייתה קיימת נכנסות לתור — הן
+    נבדקות במודל פעם אחת, לפני המטלות הרגילות.
+    הבדיקה האוטומטית מושהית למטלה רק כשמסך „בדיקת הגשות” מריץ בה בדיקה ממש
+    עכשיו — תוצאות שממתינות שם להחלה אינן עוצרות אותה.
+  </p>
+  {% if not status.enabled %}
+  <p class="notice-inline notice-warning">
+    הבדיקה האוטומטית כבויה בהגדרות השרת (PORTAL_EXAM_AUTO_CHECK).
+  </p>
+  {% elif not status.llm_enabled %}
+  <p class="notice-inline notice-warning">
+    בדיקת המודל כבויה כרגע (אין מפתח פעיל או שההפעלה כובתה), ולכן הבדיקה
+    האוטומטית לא יכולה לסיים הגשות שממתינות למודל.
+  </p>
+  {% endif %}
+  <dl class="stat-row">
+    <div><dt>ריצה אחרונה</dt><dd>{{ status.last_run_label or 'עדיין לא תועדה' }}</dd></div>
+    <div><dt>ריצה הבאה (משוער)</dt><dd>{{ status.next_run_label or '—' }}</dd></div>
+    <div><dt>הושלמו ונשמרו ביומן</dt><dd>{{ status.written_total }}</dd></div>
+  </dl>
+  <div class="badge-row">
+    <span class="badge badge-warning">ממתינות: {{ status.totals.waiting }}</span>
+    <span class="badge badge-missing">נכשלו: {{ status.totals.failed }}</span>
+    <span class="badge badge-missing">מטלות לבדיקה מחדש: {{ status.totals.failed_assignments }}</span>
+    <span class="badge badge-draft">רישום ישן: {{ status.totals.legacy }}</span>
+    <span class="badge badge-published">נבדקו במודל: {{ status.totals.reviewed }}</span>
+  </div>
+  <p class="muted small">
+    היומן שומר את {{ run_keep }} הריצות האחרונות ומתעד כל ריצה מאז העדכון האחרון של
+    המערכת. מספר הניסיונות והסיבה של כל הגשה נשמרים על ההגשה עצמה, כך שהם
+    משקפים גם ניסיונות מלפני היומן.
+  </p>
+</section>
+
+{% set verdict_badges = {
+  'ok': 'badge-published',
+  'failed': 'badge-missing',
+  'pending': 'badge-warning'
+} %}
+<section class="card" id="recent-report">
+  <h2>דוח {{ status.recent.hours }} השעות האחרונות</h2>
+  <p class="muted">
+    כל בדיקה אוטומטית שנגעה בהגשה מאז {{ status.recent.since_label }} —
+    איזו כיתה, איזו מטלה/מבחן/בוחן, איזה תלמיד/ה, והאם הבדיקה הצליחה.
+    מטלות שנשלחו לבדיקה מחדש מוצגות עם התוצאה הסופית של הבדיקה.
+  </p>
+  <div class="badge-row">
+    <span class="badge badge-published">הצליחו: {{ status.recent.counts.ok }}</span>
+    <span class="badge badge-missing">נכשלו: {{ status.recent.counts.failed }}</span>
+    <span class="badge badge-warning">ממתינות/נדחו: {{ status.recent.counts.pending }}</span>
+  </div>
+  {% if status.recent.rows %}
+  <div class="table-scroll" tabindex="0">
+    <table class="recent-table">
+      <thead>
+        <tr>
+          <th scope="col">זמן</th>
+          <th scope="col">כיתה</th>
+          <th scope="col">מטלה / מבחן / בוחן</th>
+          <th scope="col">תלמיד/ה</th>
+          <th scope="col">תוצאה</th>
+          <th scope="col">סיבה</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in status.recent.rows %}
+        <tr>
+          <td class="recent-time">{{ row.ran_at_label }}</td>
+          <td>{{ row.class_name }}</td>
+          <td class="recent-assignment">
+            <span class="badge badge-type">{{ row.kind }}</span>
+            {{ row.assignment_title }}
+          </td>
+          <td>
+            {% if row.submission_id %}
+            <a href="/teacher/submissions/{{ row.submission_id }}">{{ row.student }}</a>
+            {% else %}
+            {{ row.student }}
+            {% endif %}
+          </td>
+          <td class="recent-verdict">
+            <span class="badge {{ verdict_badges.get(row.verdict, 'badge-draft') }}">{{ row.status_label }}</span>
+            {% if row.score is not none %}<span class="muted small">ציון {{ row.score }}</span>{% endif %}
+          </td>
+          <td class="recent-reason">{{ row.reason_he or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">לא תועדו בדיקות אוטומטיות ב־{{ status.recent.hours }} השעות האחרונות.</p>
+  {% endif %}
+</section>
+
+{% for row in status.assignments %}
+<section class="card">
+  <div class="page-head">
+    <div>
+      <h2>{{ row.title }}</h2>
+      <p class="muted">{{ row.class_name }}</p>
+    </div>
+    <div class="head-actions">
+      <a class="button button-quiet button-small"
+         href="/teacher/assignments/{{ row.id }}/llm-check">בדיקת הגשות</a>
+    </div>
+  </div>
+
+  {% if row.busy %}
+  <p class="notice-inline notice-warning">
+    ריצה ידנית פעילה במסך „בדיקת הגשות”: הבדיקה האוטומטית מושהית למטלה זו
+    עד שהריצה מסתיימת (החלה או ביטול) — בריצה הבאה היא תחזור לפעול.
+  </p>
+  {% endif %}
+
+  <div class="badge-row">
+    {% if row.counts.reviewed %}<span class="badge badge-published">נבדקו במודל: {{ row.counts.reviewed }}</span>{% endif %}
+    {% if row.counts.waiting %}<span class="badge badge-warning">ממתינות: {{ row.counts.waiting }}</span>{% endif %}
+    {% if row.counts.failed %}<span class="badge badge-missing">נכשלו: {{ row.counts.failed }}</span>{% endif %}
+    {% if row.counts.off %}<span class="badge badge-type">ללא שאלות פתוחות: {{ row.counts.off }}</span>{% endif %}
+    {% if row.counts.legacy %}<span class="badge badge-draft">רישום ישן: {{ row.counts.legacy }}</span>{% endif %}
+    {% if row.counts.signed %}<span class="muted small">אושרו על ידך: {{ row.counts.signed }}</span>{% endif %}
+    {% if row.counts.disqualified %}<span class="muted small">נפסלו: {{ row.counts.disqualified }}</span>{% endif %}
+  </div>
+
+  {% if row.pending %}
+  <ul class="auto-list">
+    {% for paper in row.pending %}
+    <li class="auto-row">
+      <div class="auto-main">
+        <a class="auto-name" href="/teacher/submissions/{{ paper.submission_id }}">{{ paper.student_name }}</a>
+        <span class="badge {{ state_badges.get(paper.state, 'badge-draft') }}">{{ paper.state_label }}</span>
+        {% if paper.score is not none %}<span class="muted small">ציון נוכחי {{ paper.score }}</span>{% endif %}
+        {% if paper.legacy %}
+        <span class="muted small">ההגשה נקדה לפני שבדיקת המודל הייתה קיימת — הבדיקה האוטומטית תבדוק אותה במודל פעם אחת.</span>
+        {% elif paper.off_unconfirmed %}
+        <span class="muted small">ההגשה סומנה „ללא שאלות פתוחות” לפני שהמחוון עודכן — הבדיקה האוטומטית תבדוק אותה שוב פעם אחת.</span>
+        {% else %}
+        {% if paper.attempts %}<span class="muted small">ניסיונות: {{ paper.attempts }}</span>{% endif %}
+        {% if paper.cooling and paper.next_at_label %}
+        <span class="muted small">יבדק שוב אחרי {{ paper.next_at_label }}</span>
+        {% elif paper.next_at_label %}
+        <span class="muted small">בתור לבדיקה הקרובה</span>
+        {% endif %}
+        {% endif %}
+      </div>
+      {% if paper.reason_he %}
+      <p class="auto-reason">{{ paper.reason_he }}</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">אין הגשות שממתינות לבדיקת מודל במטלה זו.</p>
+  {% endif %}
+</section>
+{% endfor %}
+
+{% if status.assignment_retries %}
+<section class="card">
+  <h2>מטלות רגילות שנכשלו וייבדקו שוב</h2>
+  <p class="muted small">
+    הגשות למטלות רגילות (לא מבחן) שהבדיקה האוטומטית שלהן נכשלה — למשל תקלה
+    אצל ספק המודל. הבדיקה האוטומטית שולחת אותן שוב לבדיקה, עד 5 הגשות בכל ריצה.
+  </p>
+  <ul class="auto-list">
+    {% for row in status.assignment_retries %}
+    <li class="auto-row">
+      <div class="auto-main">
+        <a class="auto-name" href="/teacher/submissions/{{ row.submission_id }}">{{ row.student_name }}</a>
+        <span class="badge badge-missing">נכשל — ייבדק שוב</span>
+        <span class="muted small">{{ row.assignment_title }} · {{ row.class_name }}</span>
+        <span class="muted small">הוגש: {{ row.submitted_label }}</span>
+      </div>
+      {% if row.reason_he %}
+      <p class="auto-reason">{{ row.reason_he }}</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>יומן ריצות</h2>
+  {% if status.runs %}
+  <p class="muted small">הריצה האחרונה פתוחה; לחצו על ריצה כדי לראות את הפירוט שלה.</p>
+  <div class="auto-runs">
+    {% for run in status.runs %}
+    <details class="auto-run" {% if loop.first %}open{% endif %}>
+      <summary class="auto-run-summary">
+        <span class="auto-run-time">{{ run.ran_at_label }}</span>
+        <span class="badge badge-type">{{ run.source_label }}</span>
+        <span class="muted small">
+          נבחרו {{ run.selected }} ·
+          הושלמו {{ run.written }} ·
+          נדחו {{ run.deferred }} ·
+          נכשלו {{ run.failed }}
+          {% if run.requeued %} · נשלחו מחדש {{ run.requeued }}{% endif %}
+          {% if run.off_confirmed %} · אומתו ללא שאלות פתוחות {{ run.off_confirmed }}{% endif %}
+        </span>
+      </summary>
+      {% if run.details %}
+      <ul class="auto-list">
+        {% for item in run.details %}
+        <li class="auto-row">
+          <div class="auto-main">
+            {% if item.submission_id %}
+            <a class="auto-name" href="/teacher/submissions/{{ item.submission_id }}">{{ item.student or ('הגשה #' ~ item.submission_id) }}</a>
+            {% else %}
+            <span class="auto-name">{{ item.student }}</span>
+            {% endif %}
+            <span class="badge {{ outcome_badges.get(item.outcome, 'badge-type') }}">{{ item.outcome_label }}</span>
+            {% if item.score is not none %}<span class="muted small">ציון {{ item.score }}</span>{% endif %}
+          </div>
+          {% if item.reason_he %}
+          <p class="auto-reason">{{ item.reason_he }}</p>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif run.selected == 0 %}
+      <p class="muted small">לא נמצאו הגשות שדרשו בדיקה — הכול כבר נבדק או אושר, או שההגשות עדיין בהמתנה בין ניסיונות.</p>
+      {% endif %}
+    </details>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">
+    עדיין אין ריצות מתועדות. היומן נבנה מהרגע שהגרסה החדשה עלתה לשרת;
+    הריצה האוטומטית הבאה (או הרצה ידנית) תופיע כאן.
+  </p>
+  {% endif %}
+</section>
+{% endblock %}

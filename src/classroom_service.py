@@ -22,8 +22,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from collections.abc import Iterator, Sequence
 from datetime import date, datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 import httplib2
@@ -40,6 +42,26 @@ logger = logging.getLogger(__name__)
 
 GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 UNKNOWN_STUDENT = "Unknown student"
+
+# Serialize every Google API round-trip in this process.
+#
+# ``httplib2.Http`` (wrapped by ``google_auth_httplib2.AuthorizedHttp`` and
+# shared by the Classroom / Drive / Docs clients built in ``__init__``) is
+# *not* thread-safe. On Streamlit Community Cloud several sessions run inside
+# one container, so two users opening the app at once can issue concurrent SSL
+# I/O through the same native OpenSSL state. A dropped TLS record mid-flight
+# (``[SSL] record layer failure``) can then leave the OpenSSL/glibc heap in a
+# corrupted state, surfacing as:
+#
+#     malloc(): unsorted double linked list corrupted
+#     Aborted
+#
+# which kills the whole Streamlit process - no Python ``except`` can catch a
+# native abort. Holding one process-wide lock around every ``execute()`` call
+# makes the SSL stack single-threaded, so a transient network hiccup stays a
+# retriable Python error (tenacity retries, rendered in the UI) instead of a
+# process-killing heap corruption.
+_GOOGLE_IO_LOCK = threading.RLock()
 
 # Socket timeout for every Google API round-trip.
 #
@@ -420,7 +442,8 @@ class ClassroomService:
         so the UI tells the user to re-authorize instead of retrying.
         """
         try:
-            return call_with_retry(request.execute, action=action)
+            with _GOOGLE_IO_LOCK:
+                return call_with_retry(request.execute, action=action)
         except HttpError as exc:
             err = ClassroomService._api_error(action, exc)
             if is_auth_failure(exc) and (
@@ -587,6 +610,22 @@ class ClassroomService:
             if not page_token:
                 break
         return topics
+
+    def create_topic(self, course_id: str, name: str) -> dict[str, Any]:
+        """Create one topic in a course and return the topic resource.
+
+        Topics are the Classroom "tabs" that group coursework. The caller is
+        expected to list topics first and only create when the topic is missing
+        - re-creating a same-named topic yields duplicates that split the
+        classwork view.
+        """
+        return self._execute(
+            self.classroom.courses().topics().create(
+                courseId=course_id,
+                body={"name": name},
+            ),
+            f"create topic '{name}' in course '{course_id}'",
+        )
 
     def create_course_work_draft(
         self, course_id: str, body: dict[str, Any]
@@ -808,6 +847,33 @@ class ClassroomService:
             # rather than aborting the whole listing.
             logger.warning("Could not inspect Drive file %s: %s", file_id, exc)
             return None
+
+    def upload_drive_file(
+        self, local_path: str | Path, display_name: Optional[str] = None
+    ) -> dict[str, Any]:
+        """Upload a local file to Google Drive and return its metadata.
+
+        Returns a dict with ``id``, ``name``, ``mimeType`` and ``webViewLink``
+        - enough to build a Classroom ``driveFile`` material attachment. The
+        *file* is owned by the authenticated user's Drive; the *coursework*
+        that references it is what becomes Developer-owned when created
+        through this project's OAuth client (see
+        :meth:`create_course_work_draft`), which is what lets the auto-grader
+        later push grades and return submissions.
+        """
+        from googleapiclient.http import MediaFileUpload
+
+        path = Path(local_path)
+        file_metadata = {"name": display_name or path.name}
+        media = MediaFileUpload(str(path), resumable=True)
+        return self._execute(
+            self.drive.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id,name,mimeType,webViewLink",
+            ),
+            f"upload Drive file '{path.name}'",
+        )
 
     def _drive_mime_type(self, file_id: str) -> Optional[str]:
         """Look up a Drive file's mimeType; None when unavailable.

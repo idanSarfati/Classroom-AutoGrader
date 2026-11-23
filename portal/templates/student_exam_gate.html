@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{# Before the window opens and after it closes there is no paper to serve.
+   The page says exactly when the exam is available instead of showing an
+   empty form the server would refuse anyway. #}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted">{{ group.name }}</p>
+  </div>
+</section>
+
+<section class="card exam-card exam-gate" aria-label="מועד המבחן">
+  <div class="section-head">
+    <h2>מועד המבחן</h2>
+    <span class="badge {{ 'badge-draft' if exam_state == 'before' else 'badge-danger' }}">
+      {{ 'טרם נפתח' if exam_state == 'before' else 'נסגר' }}
+    </span>
+  </div>
+  <ul class="exam-facts">
+    {% if exam_opens_at %}<li>נפתח {{ exam_opens_at|local_dt }}</li>{% endif %}
+    {% if exam_closes_at %}<li>נסגר {{ exam_closes_at|local_dt }}</li>{% endif %}
+    {% if exam_personal_window %}
+    <li>מועד אישי שהוגדר עבורכם על ידי המורה</li>
+    {% endif %}
+    <li>הגשה אחת בלבד</li>
+  </ul>
+  {% if exam_state == 'before' %}
+  <p class="notice-inline">
+    המבחן ייפתח במועד שרשום למעלה. ברגע הפתיחה יופיע כאן דף המבחן,
+    עם גרסה אישית שלכם וסדר שאלות אקראי.
+  </p>
+  {% else %}
+  <p class="notice-inline">
+    מועד הגשת המבחן הסתיים, ולכן אי אפשר לפתוח אותו או להגיש אותו.
+    אם היו לכם בעיות טכניות, פנו למורה.
+  </p>
+  {% endif %}
+</section>
+
+{% if content and content.body_html %}
+<section class="card">
+  <h2>הוראות</h2>
+  <div class="prose rich-text">{{ content.body_html|safe }}</div>
+</section>
+{% elif exam.instructions %}
+<section class="card">
+  <h2>הוראות</h2>
+  <p class="prose">{{ exam.instructions }}</p>
+</section>
+{% endif %}
+
+{% if attachments %}
+<section class="card">
+  <div class="section-head">
+    <h2>קבצים מצורפים <span class="count">{{ attachments|length }}</span></h2>
+  </div>
+  <ul class="import-attachments media-list">
+    {% for attachment in attachments %}
+    <li>
+      <a href="/student/assignments/{{ assignment.id }}/media/{{ attachment.id }}">
+        {{ attachment.title }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

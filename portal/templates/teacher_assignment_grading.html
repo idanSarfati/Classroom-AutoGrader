@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }} · בדיקות · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}/grading">בדיקות</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted">
+      {{ group.name }} · {{ rows|length }} תלמידים
+      {% if assignment.due_at %}· יעד {{ assignment.due_at|local_dt }}{% endif %}
+      {% if not assignment.published %}· המטלה עדיין טיוטה{% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-primary" href="/teacher/preview/assignments/{{ assignment.id }}">
+      צפייה במטלה
+    </a>
+    <a class="button button-secondary" href="/teacher/classes/{{ group.id }}/grading">
+      כל הבדיקות
+    </a>
+  </div>
+</section>
+
+<section class="card">
+  {% if rows %}
+  <ul class="grading-list">
+    {% for row in rows %}
+    <li class="grading-row">
+      <div class="grading-main">
+        <div class="assignment-title-row">
+          <strong>{{ row.student.display_name }}</strong>
+          {% if row.submission %}
+          <span class="badge {{ status_badges.get(row.status, 'badge-type') }}">
+            {{ status_labels.get(row.status, row.status) }}
+          </span>
+          {% if row.submission.revision > 1 %}
+          <span class="badge badge-type">גרסה {{ row.submission.revision }}</span>
+          {% endif %}
+          {% else %}
+          <span class="badge badge-draft">{{ not_submitted_label }}</span>
+          {% endif %}
+          {% if row.grade and row.grade.audit_needs_review %}
+          <span class="badge badge-warning">לסקירה</span>
+          {% endif %}
+          {% if row.grade and row.grade.reviewed_at %}
+          <span class="badge badge-published">נסקר</span>
+          {% endif %}
+        </div>
+        <div class="meta muted">
+          {% if row.submission %}
+          הוגש {{ row.submission.submitted_at|local_dt }}
+          {% if row.grade %}· ציון {{ row.grade.score }}{% endif %}
+          {% else %}
+          לא הוגשה עבודה
+          {% endif %}
+          {% if row.job and row.job.state in ('queued', 'grading', 'deferred') %}
+          · {{ status_labels.get(row.job.state, row.job.state) }}
+          {% endif %}
+        </div>
+        {% if row.job and row.job.state == 'failed' and row.job.error %}
+        <p class="muted small">שגיאה: {{ row.job.error[:180] }}</p>
+        {% endif %}
+      </div>
+      {% if row.submission %}
+      <a class="button button-secondary" href="/teacher/submissions/{{ row.submission.id }}">
+        {{ 'לסקירה' if row.grade else 'להגשה' }}
+      </a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">אין תלמידים רשומים בכיתה.</p>
+  {% endif %}
+</section>
+{% endblock %}

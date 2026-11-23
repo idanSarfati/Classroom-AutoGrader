@@ -1,0 +1,48 @@
+# Portal-local runtime artifacts. Everything here is generated, never shared.
+data/*.db
+data/*.db-*
+data/*.db.*
+data/*.bak*
+data/secret_key
+.env
+data/*.log
+data/_tmp/
+data/tools/
+data/public_url.txt
+
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Imported Google Classroom content (private, generated)
+content/
+data/google_token.json
+
+# Phase 7: generated passwords and the teacher review/identity mapping
+data/*credentials*.csv
+data/*mapping*.csv
+
+# Printable password sheets (names, national ids and plaintext passwords)
+data/credentials/
+
+# Mapping report deliverables (private student names and national IDs)
+data/*.xlsx
+data/*report*.json
+
+# Exported rows of content removed from the live database (student grades)
+data/removed-*.json
+
+# SSH / cloud credentials that must NEVER be committed
+data/deploy_key
+data/deploy_key.pub
+data/oci_api_key
+data/oci_api_key.pub
+data/oci_api_key_pem.pub
+data/*.pem
+data/*.key
+data/*.p8
+data/*.csr
+
+# Data/export archives (may contain student data)
+data/*.tar.gz
+data/*.zip

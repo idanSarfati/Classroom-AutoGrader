@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}השיעורים שלי · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>שיעורים</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>השיעורים שלי</h1>
+    <p class="muted">
+      כל תוכן הלימוד של הקורס לפי נושאים — הרצאות, מסמכים ומשימות — פריט אחד
+      מכל סוג, בלי כפילות בין כיתות. כולל נושאים ופריטים שטרם פורסמו.
+    </p>
+  </div>
+  {% if tree.course_name %}
+  <div class="head-actions">
+    <span class="badge badge-type">{{ tree.course_name }}</span>
+  </div>
+  {% endif %}
+</section>
+
+{% if tree.catalog_error %}
+<div class="flash flash-error" role="status">{{ tree.catalog_error }}</div>
+{% endif %}
+
+<section class="card" aria-label="תוכן הקורס לפי נושאים">
+  <div class="section-head">
+    <h2>תוכן הקורס <span class="count">{{ tree.total }}</span></h2>
+    {% if tree.catalog_has_data %}
+    <span class="muted small">עודכן ב־{{ tree.catalog_synced_at|local_dt }}</span>
+    {% endif %}
+  </div>
+
+  {% if tree.total %}
+  <div class="picker-filter course-tree-bar">
+    <label for="course-filter">סינון מהיר</label>
+    <input id="course-filter" type="search" data-picker-filter
+           placeholder="הקלידו חלק משם נושא או פריט…">
+    <div class="row-actions">
+      <button type="button" class="button button-quiet" data-course-open-all>
+        פתיחת כל הנושאים
+      </button>
+      <button type="button" class="button button-quiet" data-course-close-all>
+        סגירת כל הנושאים
+      </button>
+    </div>
+  </div>
+  <p class="hint">
+    פתחו נושא כדי לראות את ההרצאות והמשימות שבו. התגים מראים אם הפריט כבר
+    בפורטל והאם הוא מפורסם לתלמידים; „טרם יובא” מסמן חומר שעדיין לא נכנס לפורטל.
+  </p>
+
+  {% for group in tree.groups %}
+  <details class="picker-group" data-picker-group>
+    <summary class="picker-group-summary">
+      <span class="picker-group-name">{{ group.name }}</span>
+      <span class="count">{{ group.rows|length }}</span>
+    </summary>
+    {% if group.rows %}
+    <ul class="selection-list">
+      {% for row in group.rows %}
+      <li class="selection-row" data-picker-row>
+        <div class="selection-head">
+          <span class="badge badge-type">{{ row.kind_label }}</span>
+          {% if row.is_draft %}
+          <span class="badge badge-draft">טיוטה בקורס</span>
+          {% endif %}
+          {% if row.portal %}
+            {% if row.portal.published %}
+            <span class="badge badge-published">מפורסם</span>
+            {% else %}
+            <span class="badge badge-draft">טיוטה בפורטל</span>
+            {% endif %}
+          {% else %}
+          <span class="badge badge-missing">טרם יובא</span>
+          {% endif %}
+        </div>
+        {% if row.portal %}
+          {% if row.portal.type == 'lesson' %}
+          <a class="lesson-link" href="/teacher/lessons/{{ row.portal.id }}">{{ row.title }}</a>
+          {% else %}
+          <a class="lesson-link" href="/teacher/preview/assignments/{{ row.portal.id }}">{{ row.title }}</a>
+          {% endif %}
+        {% else %}
+        <strong class="lesson-link">{{ row.title }}</strong>
+        {% endif %}
+        <div class="meta muted">
+          {% if row.due %}יעד: {{ row.due|local_dt }} · {% endif %}
+          {% if row.portal %}
+            {{ 'שיעור בפורטל' if row.portal.type == 'lesson' else 'מטלה בפורטל' }}
+          {% else %}
+            קיים בקורס בלבד
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">אין פריטים בנושא זה עדיין.</p>
+    {% endif %}
+  </details>
+  {% endfor %}
+
+  {% else %}
+  <p class="muted">עוד אין שיעורים</p>
+  <p class="hint">
+    {% if tree.catalog_has_data %}
+    הקורס נסרק אך לא נמצאו בו חומרים להצגה.
+    {% else %}
+    כדי למלא את העץ, סרקו את חומרי הקורס מתוך כיתה: „שיעור חדש” ואז
+    „טעינת החומרים עכשיו”. אחרי הסריקה כל הנושאים והחומרים יופיעו כאן.
+    {% endif %}
+  </p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <details class="disclosure" {% if selected_class %}open{% endif %}>
+    <summary class="button button-primary">שיעור חדש</summary>
+    <form method="post" action="/teacher/lessons" class="stack form-panel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div>
+        <label for="lesson-title">שם השיעור</label>
+        <input id="lesson-title" name="title" type="text" maxlength="160" required
+               placeholder="לדוגמה: שיעור 4 – תנאים ולולאות">
+      </div>
+
+      <div>
+        <label for="lesson-summary">תקציר (אופציונלי)</label>
+        <textarea id="lesson-summary" name="summary" rows="3" maxlength="20000"
+                  placeholder="על מה השיעור, ומה התלמידים צריכים לדעת בסופו."></textarea>
+      </div>
+
+      <div>
+        <label for="lesson-class">שיוך</label>
+        <select id="lesson-class" name="class_id">
+          <option value="">שיעור כללי – לכל התלמידים</option>
+          {% for group in classes %}
+          <option value="{{ group.id }}"
+                  {% if selected_class == group.id|string %}selected{% endif %}>
+            {{ group.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" name="published" value="on">
+        <span>לפרסם לתלמידים</span>
+      </label>
+
+      <button type="submit" class="button button-primary">יצירת שיעור</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

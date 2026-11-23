@@ -520,6 +520,13 @@ def _render_release_for_result(
             _publish_dry_run_result(service, report_path, options)
             st.session_state.pop(ready_key, None)
             st.session_state[done_key] = True
+            # Drop the just-released students from the dashboard's pending
+            # list so they disappear from this tab without a manual refresh.
+            released = st.session_state.pop("_dashboard_released_submissions", []) or []
+            if released:
+                _remove_released_from_dashboard(
+                    result.course.id, result.assignment.id, set(released)
+                )
             st.rerun()
     with col_cancel:
         if st.button(
@@ -529,6 +536,42 @@ def _render_release_for_result(
         ):
             st.session_state.pop(ready_key, None)
             st.rerun()
+
+
+def _remove_released_from_dashboard(
+    course_id: str, course_work_id: str, released: set[str]
+) -> None:
+    """Remove successfully returned submissions from the cached pending list.
+
+    So the just-released students vanish from the dashboard tab right away
+    instead of lingering until the teacher presses Refresh. Only the group
+    matching this course + coursework is touched; sibling assignments are
+    left alone. Empty groups are kept so their "Released" banner still
+    renders through the inline dry-run panel.
+    """
+    groups = st.session_state.get("dashboard_groups")
+    if not groups:
+        return
+
+    kept: list[PendingGroup] = []
+    for group in groups:
+        if group.course.id != course_id or group.assignment.id != course_work_id:
+            kept.append(group)
+            continue
+        survivors = [
+            sub for sub in group.submissions if sub.submission_id not in released
+        ]
+        # Keep the group even when every submission was released: the empty
+        # group still renders its inline dry-run panel, which is where the
+        # "Released" banner is shown. Dropping it would hide the banner.
+        kept.append(
+            PendingGroup(
+                course=group.course,
+                assignment=group.assignment,
+                submissions=tuple(survivors),
+            )
+        )
+    st.session_state["dashboard_groups"] = kept
 
 
 def _publish_dry_run_result(

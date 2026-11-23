@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "_chat_macros.html" as chat_macros %}
+{% block title %}צ'אט · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>צ'אט</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>צ'אט עם תלמידים</h1>
+    <p class="muted">
+      הודעות שהתלמידים שולחים מגיעות לכאן. הודעה שנשלחה מדף משימה מציינת
+      את המשימה שבהקשרה נשאלה השאלה.
+    </p>
+  </div>
+</section>
+
+{% if conversations %}
+<section class="card chat-layout" data-chat-page
+         data-peer-param="student"
+         data-active="{{ active_student if active_student else '' }}"
+         data-thread-url="/teacher/chat/thread"
+         data-send-url="/teacher/chat/send">
+  <aside class="chat-list" aria-label="שיחות תלמידים">
+    <ul class="chat-conversations">
+      {% for c in conversations %}
+      <li>
+        <a class="chat-conversation{{ ' is-active' if c.student_id == active_student else '' }}"
+           href="/teacher/chat?student={{ c.student_id }}">
+          <span class="chat-conversation-top">
+            <span class="chat-conversation-name">{{ c.name }}</span>
+            {% if c.unread %}<span class="nav-badge">{{ c.unread }}</span>{% endif %}
+          </span>
+          {% if c.last_body %}
+          <span class="chat-conversation-preview">{{ c.last_body }}</span>
+          {% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <div class="chat-main">
+    <header class="chat-main-head">
+      <h2>{{ active_name }}</h2>
+    </header>
+    {{ chat_macros.thread(messages) }}
+    {{ chat_macros.compose('/teacher/chat/send', 'student', active_student, csrf_token, max_message_chars) }}
+  </div>
+</section>
+{% else %}
+<section class="card empty-state">
+  <h2>אין עדיין הודעות</h2>
+  <p>כשתלמיד ישלח הודעה — מהצ'אט הכללי או מבועת הצ'אט שבדף משימה — השיחה תופיע כאן.</p>
+  <a class="button button-quiet" href="/teacher">חזרה לכיתות שלי</a>
+</section>
+{% endif %}
+{% endblock %}

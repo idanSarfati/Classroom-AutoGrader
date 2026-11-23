@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}הוספת שיעור או מטלה · {{ group.name }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set mime_labels = {
+  'application/vnd.google-apps.document': 'מסמך Google',
+  'application/vnd.google-apps.presentation': 'מצגת Google',
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word'
+} %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>הוספת תוכן</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>הוספת שיעור או מטלה</h1>
+    <p class="muted">
+      בוחרים פריט ספציפי מ-Google Classroom — מטלה או מצגת הוראה — ומחליטים
+      אם הוא נכנס לפורטל כשיעור (חומר לימוד) או כמטלה. הכול נוצר כטיוטה,
+      והתלמידים רואים אותו רק אחרי פרסום.
+    </p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-quiet" href="/teacher/classes/{{ group.id }}">חזרה לכיתה {{ group.name }}</a>
+  </div>
+</section>
+
+{% if source_error %}
+<div class="flash flash-error" role="status">{{ source_error }}</div>
+{% endif %}
+
+<section class="card" id="catalog">
+  <div class="section-head">
+    <h2>חומרי הקורס</h2>
+    {% if course_name %}
+    <span class="badge badge-type">{{ course_name }}</span>
+    {% endif %}
+    {% if catalog_status == 'refreshing' %}
+    <span class="badge badge-draft" data-catalog-pending>סורק עכשיו…</span>
+    {% elif catalog_has_data %}
+    <span class="badge badge-published">מעודכן</span>
+    {% endif %}
+  </div>
+  {% if catalog_has_data %}
+  <p class="muted">
+    החומרים נסרקו לאחרונה ב-{{ catalog_synced_at|local_dt }} ונשמרים באתר,
+    כך שהמסך הזה נפתח מיד. סריקה חדשה מוסיפה רק חומרים שפורסמו בקורס מאז.
+  </p>
+  {% if catalog_new_count %}
+  <div class="flash flash-success" role="status">
+    נמצאו {{ catalog_new_count }} פריטים חדשים מאז הסריקה הקודמת — הם מסומנים
+    בתג "חדש".
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="muted">
+    עדיין לא נסרקו החומרים. הסריקה רצה פעם אחת ברקע ושומרת את רשימת המטלות
+    והמצגות באתר — מהסריקה הבאה ואילך המסך ייפתח מיד.
+  </p>
+  {% endif %}
+  {% if catalog_error %}
+  <div class="flash flash-error" role="status">{{ catalog_error }}</div>
+  {% endif %}
+  <form method="post" action="/teacher/classes/{{ group.id }}/scan"
+        class="row-form compact">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="course_id" value="{{ chosen_course_id }}">
+    <button type="submit" class="button button-primary"
+            {% if catalog_status == 'refreshing' %}disabled{% endif %}>
+      {{ 'סריקת חומרים חדשים' if catalog_has_data else 'טעינת החומרים עכשיו' }}
+    </button>
+  </form>
+  {% if catalog_status == 'refreshing' %}
+  <p class="hint">הסריקה רצה ברקע. העמוד מתרענן לבד כשהחומרים מוכנים.</p>
+  {% endif %}
+</section>
+
+{% if catalog_has_data %}
+
+{% if coursework_rows or deck_rows or doc_rows %}
+<nav class="picker-jump" aria-label="קיצורי דרך">
+  <a href="#materials">מטלות, חומרים ומצגות ({{ picker_total }})</a>
+  <a href="#manual">שיעור ידני</a>
+</nav>
+{% endif %}
+
+{% if coursework_rows or deck_rows or doc_rows %}
+<form method="post" action="/teacher/classes/{{ group.id }}/new" class="stack">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="course_id" value="{{ chosen_course_id }}">
+  <input type="hidden" name="folder_id" value="{{ folder_id }}">
+
+  <datalist id="rubric-options">
+    {% for choice in rubric_choices %}
+    <option value="{{ choice }}"></option>
+    {% endfor %}
+  </datalist>
+
+  <section class="card" id="materials">
+    <div class="section-head">
+      <h2>מטלות, חומרים ומצגות מהקורס <span class="count">{{ picker_total }}</span></h2>
+    </div>
+    <p class="hint">
+      סמנו פריט, ואז בחרו אם הוא נכנס כשיעור (חומר לימוד) או כמטלה עם מחוון.
+      מטלה לא תיווצר בלי קובץ מחוון. מצגת נכנסת תמיד כשיעור עם שקופיות כתמונות,
+      ומסמך הוראה נכנס כשיעור עם תוכן המסמך.
+      הנושאים סגורים כברירת מחדל — פתחו נושא כדי לראות את הפריטים בו.
+    </p>
+    {% if deck_error %}
+    <div class="flash flash-error" role="status">{{ deck_error }}</div>
+    {% endif %}
+
+    {% if picker_total > 10 %}
+    <div class="picker-filter">
+      <label for="materials-filter">סינון מהיר</label>
+      <input id="materials-filter" type="search" data-picker-filter
+             placeholder="הקלידו חלק משם הפריט…">
+    </div>
+    {% endif %}
+
+    {% for group in picker_groups %}
+    <details class="picker-group" data-picker-group>
+      <summary class="picker-group-summary">
+        <span class="picker-group-name">{{ group.name or 'ללא נושא' }}</span>
+        <span class="count">{{ group.rows|length }}</span>
+        <span class="badge badge-published" data-group-selected hidden></span>
+      </summary>
+      <ul class="selection-list">
+        {% for row in group.rows %}
+        <li class="selection-row" data-selection-row data-picker-row>
+          <div class="selection-head">
+            <label class="checkbox-row">
+              <input type="checkbox" name="pick" value="{{ row.pick_value }}">
+              <span>{{ row.title }}</span>
+            </label>
+            {% if row.is_new %}
+            <span class="badge badge-new">חדש</span>
+            {% endif %}
+            {% if row.kind == 'coursework' and row.is_draft %}
+            <span class="badge badge-draft">טיוטה בקורס</span>
+            {% endif %}
+            {% if row.kind == 'coursework' and row.is_material %}
+            <span class="badge badge-type">חומר לימוד בקורס</span>
+            {% endif %}
+            {% if row.kind == 'coursework' and row.presentations %}
+            <span class="badge badge-type">
+              {{ 'מצגת הוראה' if row.presentations == 1 else row.presentations ~ ' מצגות' }}
+            </span>
+            {% endif %}
+            {% if row.kind in ('deck', 'doc') and row.copies > 1 %}
+            <span class="badge badge-type">{{ row.copies }} עותקים</span>
+            {% endif %}
+            {% if row.duplicate_count %}
+            <span class="badge badge-published">
+              {{ row.duplicate_count }} עותקים זהים אוחדו
+            </span>
+            {% endif %}
+            {% if row.already_imported %}
+            <span class="badge badge-draft">
+              כבר בכיתה {{ 'כמטלה' if row.existing_type == 'assignment' else 'כשיעור' }}
+            </span>
+            {% endif %}
+            {% if row.reusable_from %}
+            <span class="badge badge-type">קיים בכיתה {{ row.reusable_from }}</span>
+            {% endif %}
+            {% if row.rubric_score %}
+            <span class="badge badge-type">התאמת מחוון {{ (row.rubric_score * 100)|round(0, 'floor')|int }}%</span>
+            {% endif %}
+          </div>
+
+          {% if row.kind == 'deck' %}
+          <p class="hint">יתווסף כשיעור עם שקופיות כתמונות.</p>
+          {% elif row.kind == 'doc' %}
+          <p class="hint">יתווסף כשיעור עם תוכן המסמך.</p>
+          {% else %}
+          <div class="meta muted">
+            {% if row.due %}יעד: {{ row.due|local_dt }} · {% endif %}
+            {{ row.attachments|length }} קבצים
+          </div>
+          {% if row.description %}
+          <p class="clamp">{{ row.description }}</p>
+          {% endif %}
+
+          {% if row.attachments %}
+          <ul class="import-attachments">
+            {% for attachment in row.attachments %}
+            <li>
+              <span class="badge badge-type">{{ 'קישור' if attachment.kind == 'link' else mime_labels.get(attachment.mime_type, 'קובץ') }}</span>
+              {{ attachment.title }}
+              {% if attachment.in_class %}
+              <span class="badge badge-draft">כבר בכיתה</span>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if row.already_imported %}
+          <p class="hint">הפריט כבר קיים בכיתה. הוספה חוזרת תעדכן אותו רק אם המקור השתנה.</p>
+          {% endif %}
+
+          <div class="field-grid selection-controls">
+            <div>
+              <label for="target-{{ row.id }}">סוג התוכן</label>
+              <select id="target-{{ row.id }}"
+                      name="target_coursework_{{ row.id }}"
+                      data-target-select>
+                <option value="lesson" {% if row.default_action == 'lesson' %}selected{% endif %}>
+                  שיעור / חומר לימוד
+                </option>
+                <option value="assignment" {% if row.default_action == 'assignment' %}selected{% endif %}>
+                  מטלה עם מחוון
+                </option>
+                <option value="skip">לא להוסיף</option>
+              </select>
+            </div>
+            <div data-rubric-field>
+              <label for="rubric-{{ row.id }}">קובץ מחוון (למטלה)</label>
+              <input id="rubric-{{ row.id }}"
+                     name="rubric_coursework_{{ row.id }}"
+                     type="text" dir="ltr" list="rubric-options" spellcheck="false"
+                     value="{{ row.rubric }}"
+                     placeholder="assignments/lesson_1.json">
+              {% if row.rubric_reason %}
+              <p class="hint">הצעה: {{ row.rubric_reason }}</p>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endfor %}
+  </section>
+
+  <div class="form-actions">
+    <button type="submit" class="button button-primary">הוספה לכיתה כטיוטה</button>
+    <a class="button button-quiet" href="/teacher/classes/{{ group.id }}">ביטול</a>
+  </div>
+</form>
+{% elif chosen_course_id and not source_error %}
+<section class="card">
+  <p class="muted">לא נמצאו מטלות, מצגות או מסמכים בקורס הזה.</p>
+</section>
+{% endif %}
+{% endif %}
+
+<section class="card" id="manual">
+  <details class="disclosure">
+    <summary class="button button-quiet">או: יצירת שיעור ידני ריק</summary>
+    <form method="post" action="/teacher/lessons" class="stack form-panel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="class_id" value="{{ group.id }}">
+
+      <div>
+        <label for="lesson-title">שם השיעור</label>
+        <input id="lesson-title" name="title" type="text" maxlength="160" required
+               placeholder="לדוגמה: שיעור 4 – תנאים ולולאות">
+      </div>
+
+      <div>
+        <label for="lesson-summary">תקציר (אופציונלי)</label>
+        <textarea id="lesson-summary" name="summary" rows="3" maxlength="20000"
+                  placeholder="על מה השיעור, ומה התלמידים צריכים לדעת בסופו."></textarea>
+      </div>
+
+      <label class="checkbox-row">
+        <input type="checkbox" name="published" value="on">
+        <span>לפרסם לתלמידים</span>
+      </label>
+
+      <button type="submit" class="button button-secondary">יצירת שיעור ריק</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

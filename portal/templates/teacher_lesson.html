@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/lessons">שיעורים</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ lesson.title }}</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ lesson.title }}</h1>
+    <p class="muted">
+      {% if lesson.class_id %}
+        {% for group in classes %}{% if group.id == lesson.class_id %}{{ group.name }}{% endif %}{% endfor %}
+      {% else %}שיעור כללי{% endif %}
+      · {{ slides|length }} שקופיות
+      {% if lesson.published %}
+      <span class="badge badge-published">מפורסם</span>
+      {% else %}
+      <span class="badge badge-draft">טיוטה</span>
+      {% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    <form method="post" action="/teacher/lessons/{{ lesson.id }}/delete"
+          data-confirm="למחוק את השיעור '{{ lesson.title }}' על כל השקופיות שלו?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-danger">מחיקת שיעור</button>
+    </form>
+  </div>
+</section>
+
+{% if lesson_source %}
+<section class="card">
+  <div class="section-head">
+    <h2>מקור התוכן</h2>
+    {% if lesson_source.reused_from_lesson_id %}
+    <span class="badge badge-type">הועתק משיעור אחר</span>
+    {% else %}
+    <span class="badge badge-published">מיובא</span>
+    {% endif %}
+  </div>
+  <p class="muted">
+    {% if lesson_source.topic_name %}נושא: {{ lesson_source.topic_name }} · {% endif %}
+    {{ 'מצגת כתמונות' if lesson_source.render_mode == 'images' else 'טקסט ומסמכים' }}
+    · {{ lesson_source.page_count }} שקופיות
+    {% if lesson_source.source_version %}· עדכון מקור: {{ lesson_source.source_version }}{% endif %}
+  </p>
+</section>
+{% endif %}
+
+<section class="card">
+  <div class="section-head">
+    <h2>פרטי השיעור</h2>
+  </div>
+  <form method="post" action="/teacher/lessons/{{ lesson.id }}/update" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div>
+      <label for="lesson-title">שם השיעור</label>
+      <input id="lesson-title" name="title" type="text" maxlength="160" required
+             value="{{ lesson.title }}">
+    </div>
+
+    <div>
+      <label for="lesson-summary">תקציר</label>
+      <textarea id="lesson-summary" name="summary" rows="3" maxlength="20000">{{ lesson.summary }}</textarea>
+    </div>
+
+    <div>
+      <label for="lesson-class">שיוך</label>
+      <select id="lesson-class" name="class_id">
+        <option value="" {% if not lesson.class_id %}selected{% endif %}>שיעור כללי – לכל התלמידים</option>
+        {% for group in classes %}
+        <option value="{{ group.id }}"
+                {% if group.id == lesson.class_id %}selected{% endif %}>
+          {{ group.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <label class="checkbox-row">
+      <input type="checkbox" name="published" value="on" {% if lesson.published %}checked{% endif %}>
+      <span>מפורסם לתלמידים</span>
+    </label>
+
+    <button type="submit" class="button button-primary">שמירת השינויים</button>
+  </form>
+</section>
+
+<section class="card">
+  <div class="section-head">
+    <h2>שקופיות <span class="count">{{ slides|length }}</span></h2>
+  </div>
+
+  {% if slides %}
+  <div class="stack">
+    {% for slide in slides %}
+    <article class="slide-admin" id="slide-{{ slide.id }}">
+      <div class="section-head">
+        <h3>שקופית {{ loop.index }}{% if slide.title %} · {{ slide.title }}{% endif %}</h3>
+        <div class="row-actions">
+          <form method="post" action="/teacher/lessons/{{ lesson.id }}/slides/{{ slide.id }}/move">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="direction" value="up">
+            <button type="submit" class="button button-quiet button-small"
+                    aria-label="העברת השקופית למעלה" {% if loop.first %}disabled{% endif %}>↑</button>
+          </form>
+          <form method="post" action="/teacher/lessons/{{ lesson.id }}/slides/{{ slide.id }}/move">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="direction" value="down">
+            <button type="submit" class="button button-quiet button-small"
+                    aria-label="העברת השקופית למטה" {% if loop.last %}disabled{% endif %}>↓</button>
+          </form>
+        </div>
+      </div>
+
+      {% set content = slide_contents.get(slide.id) %}
+      {% if content and content.image_blob_sha %}
+      <img class="slide-image"
+           src="/teacher/lessons/{{ lesson.id }}/slides/{{ slide.id }}/image"
+           alt="{{ content.alt_text or 'שקופית ' ~ loop.index }}"
+           {% if content.width %}width="{{ content.width }}" height="{{ content.height }}"{% endif %}
+           loading="lazy">
+      {% elif content and content.body_html %}
+      <div class="prose rich-text">{{ content.body_html|safe }}</div>
+      {% elif slide.body %}
+      <div class="prose">{{ slide.body }}</div>
+      {% endif %}
+      {% if slide.code %}
+      <pre class="code-block" dir="ltr"><code>{{ slide.code }}</code></pre>
+      {% endif %}
+
+      <details class="disclosure">
+        <summary class="button button-quiet">עריכת השקופית</summary>
+        <form method="post"
+              action="/teacher/lessons/{{ lesson.id }}/slides/{{ slide.id }}/update"
+              enctype="multipart/form-data"
+              class="stack form-panel">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div>
+            <label for="slide-title-{{ slide.id }}">כותרת השקופית</label>
+            <input id="slide-title-{{ slide.id }}" name="title" type="text" maxlength="160"
+                   value="{{ slide.title }}">
+          </div>
+          <div>
+            <label for="slide-body-{{ slide.id }}">תוכן</label>
+            <textarea id="slide-body-{{ slide.id }}" name="body" rows="5"
+                      maxlength="20000">{{ slide.body }}</textarea>
+          </div>
+          <div>
+            <label for="slide-code-{{ slide.id }}">קוד (אופציונלי)</label>
+            <textarea id="slide-code-{{ slide.id }}" name="code" rows="4" dir="ltr"
+                      maxlength="20000" spellcheck="false">{{ slide.code }}</textarea>
+          </div>
+          <div>
+            <label for="slide-image-{{ slide.id }}">תמונה (אופציונלי)</label>
+            <input id="slide-image-{{ slide.id }}" name="image" type="file"
+                   accept="image/png,image/jpeg,image/webp,image/gif">
+            <p class="hint">
+              בחירת קובץ מחליפה את התמונה הקיימת. עד 8MB; התמונה נשמרת כ־WebP
+              בגודל שמתאים לטלפון, בלי פרטי מיקום מהמצלמה.
+            </p>
+          </div>
+          <div>
+            <label for="slide-alt-{{ slide.id }}">תיאור התמונה להקראה (אופציונלי)</label>
+            <input id="slide-alt-{{ slide.id }}" name="alt_text" type="text" maxlength="300"
+                   value="{{ content.alt_text if content else '' }}">
+          </div>
+          <button type="submit" class="button button-primary">עדכון שקופית</button>
+        </form>
+      </details>
+
+      {% if content and content.image_blob_sha %}
+      <form method="post"
+            action="/teacher/lessons/{{ lesson.id }}/slides/{{ slide.id }}/image/remove"
+            data-confirm="להסיר את התמונה מהשקופית? הטקסט והקוד יישארו.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="link-button danger-text">הסרת תמונה</button>
+      </form>
+      {% endif %}
+
+      <form method="post" action="/teacher/lessons/{{ lesson.id }}/slides/{{ slide.id }}/delete"
+            data-confirm="למחוק את שקופית {{ loop.index }}?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="link-button danger-text">מחיקת שקופית</button>
+      </form>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">אין עדיין שקופיות. הוסיפו שקופית ראשונה למטה.</p>
+  {% endif %}
+
+  <details class="disclosure" {% if not slides %}open{% endif %}>
+    <summary class="button button-secondary">הוספת שקופית</summary>
+    <form method="post" action="/teacher/lessons/{{ lesson.id }}/slides"
+          enctype="multipart/form-data" class="stack form-panel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div>
+        <label for="new-slide-title">כותרת השקופית</label>
+        <input id="new-slide-title" name="title" type="text" maxlength="160"
+               placeholder="לדוגמה: מהי לולאת while?">
+      </div>
+      <div>
+        <label for="new-slide-body">תוכן</label>
+        <textarea id="new-slide-body" name="body" rows="6" maxlength="20000"
+                  placeholder="הסבר קצר, דוגמה, שאלה לתלמידים..."></textarea>
+      </div>
+      <div>
+        <label for="new-slide-code">קוד (אופציונלי)</label>
+        <textarea id="new-slide-code" name="code" rows="4" dir="ltr"
+                  maxlength="20000" spellcheck="false"
+                  placeholder="print(&quot;Hello&quot;)"></textarea>
+      </div>
+      <div>
+        <label for="new-slide-image">תמונה (אופציונלי)</label>
+        <input id="new-slide-image" name="image" type="file"
+               accept="image/png,image/jpeg,image/webp,image/gif">
+        <p class="hint">אפשר ליצור שקופית שהיא תמונה בלבד, בלי כותרת או טקסט. עד 8MB.</p>
+      </div>
+      <div>
+        <label for="new-slide-alt">תיאור התמונה להקראה (אופציונלי)</label>
+        <input id="new-slide-alt" name="alt_text" type="text" maxlength="300"
+               placeholder="מה רואים בתמונה — לתלמידים שמשתמשים בהקראה">
+      </div>
+      <button type="submit" class="button button-primary">הוספת שקופית</button>
+    </form>
+  </details>
+</section>
+{% endblock %}

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}סגנון הניקוד · {{ assignment.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/assignments/{{ assignment.id }}/llm-check">בדיקת הגשות</a>
+  <span aria-hidden="true">/</span>
+  <span>סגנון הניקוד</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>סגנון הניקוד שלכם</h1>
+    <p class="muted">{{ assignment.title }} · {{ group.name }}</p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-quiet" href="/teacher/assignments/{{ assignment.id }}/llm-check">חזרה לבדיקת הגשות</a>
+  </div>
+</section>
+
+<section class="card">
+  <p class="muted">
+    כל תיקון ניקוד שאתם מבצעים על תשובה נשמר כאן, מסודר לפי סדר השאלות. אחרי
+    {{ threshold }} תיקונים חדשים בשאלה, המערכת מזקקת אותם ברקע ל„פרופיל ניקוד”
+    קצר — סגנון הניקוד הכללי שלכם לאותה שאלה. בבדיקה הבאה המודל מקבל רק את
+    הפרופיל הקצר, לא את כל התיקונים, כך שהבקשה נשארת קטנה ולא נחסמת.
+  </p>
+  <p class="hint">
+    הפרופיל מכוון שיקול דעת בתוך תקרות הניקוד של המחוון — הוא לא משנה את
+    המקסימום של אף שאלה. אפשר לערוך את הנוסח ידנית; שמירה ידנית נועלת אותו
+    מפני זיקוק אוטומטי.
+  </p>
+  {% if not llm_enabled %}
+  <p class="hint">
+    בדיקת המודל כבויה כרגע, אז זיקוק אוטומטי לא ירוץ. כדי לזקק פרופיל, הפעילו
+    <span dir="ltr">EXAM_LLM_REVIEW</span> עם מודל ומפתח תקין בשרת.
+  </p>
+  {% endif %}
+  {% if routing %}
+  <p class="hint">תעבורת מפתחות: <span dir="ltr">{{ routing }}</span></p>
+  {% endif %}
+  <p class="muted small">סך הכול {{ total_corrections }} תיקונים שמורים במבחן הזה.</p>
+</section>
+
+{% for entry in ledger %}
+{% set profile = entry.profile %}
+<section class="card calib-question">
+  <div class="question-head">
+    <h2 class="calib-title">{{ entry.title }}</h2>
+    <span class="badge badge-type">{{ entry.count }} תיקונים</span>
+  </div>
+
+  <div class="calib-profile">
+    <div class="calib-profile-head">
+      <strong>פרופיל ניקוד</strong>
+      {% if profile and profile.profile %}
+        {% if profile.locked %}
+        <span class="badge badge-published">נעול · נוסח ידני</span>
+        {% else %}
+        <span class="badge badge-type">מזוקק אוטומטית</span>
+        {% endif %}
+        <span class="muted small">מ־{{ profile.source_count }} תיקונים</span>
+      {% else %}
+      <span class="badge badge-warning">אין פרופיל עדיין</span>
+      {% endif %}
+    </div>
+
+    {% if profile and profile.profile %}
+    <p class="calib-profile-text">{{ profile.profile }}</p>
+    {% if profile.distilled_at %}
+    <p class="muted small">עודכן: {{ profile.distilled_at.strftime('%d.%m.%Y %H:%M') }}</p>
+    {% endif %}
+    {% else %}
+    <p class="muted small">
+      {% if entry.count >= threshold %}
+      יש מספיק תיקונים — הפרופיל ייבנה בזיקוק הקרוב, או לחצו „זקק עכשיו”.
+      {% elif entry.count %}
+      ייבנה אוטומטית אחרי {{ threshold }} תיקונים (עוד {{ threshold - entry.count }}).
+      {% else %}
+      ייבנה אוטומטית אחרי {{ threshold }} תיקונים בשאלה זו.
+      {% endif %}
+    </p>
+    {% endif %}
+
+    {% if entry.count %}
+    <div class="row-actions">
+      <form method="post" action="/teacher/assignments/{{ assignment.id }}/calibration/distill">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="item_key" value="{{ entry.key }}">
+        <button type="submit" class="button button-secondary button-small"
+                {% if not llm_enabled %}disabled{% endif %}>זקק עכשיו</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <details class="recheck-details calib-edit">
+      <summary>עריכת הנוסח הידנית</summary>
+      <form method="post" action="/teacher/assignments/{{ assignment.id }}/calibration/profile" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="item_key" value="{{ entry.key }}">
+        <label class="muted small" for="profile-{{ entry.key }}">
+          כללי הניקוד לשאלה זו (עד {{ max_profile_chars }} תווים)
+        </label>
+        <textarea id="profile-{{ entry.key }}" name="profile" rows="4"
+                  maxlength="{{ max_profile_chars }}">{{ profile.profile if profile else '' }}</textarea>
+        <div class="row-actions">
+          <button type="submit" class="button button-primary button-small">שמירת סגנון ונעילה</button>
+        </div>
+      </form>
+    </details>
+  </div>
+
+  {% if entry.corrections %}
+  <details class="recheck-details" {% if entry.count <= 3 %}open{% endif %}>
+    <summary>התיקונים שנשמרו ({{ entry.count }})</summary>
+    <ul class="recheck-questions calib-corrections">
+      {% for correction in entry.corrections %}
+      <li>
+        <div class="recheck-qhead">
+          <span class="calib-answer">{{ correction.answer or '—' }}</span>
+          <span class="recheck-score">
+            {{ correction.model_points }}
+            <span class="score-arrow" aria-hidden="true">→</span>
+            {{ correction.teacher_points }}<span class="muted">/{{ correction.maximum }}</span>
+          </span>
+        </div>
+        {% if correction.note %}
+        <p class="muted small">הערת המורה: {{ correction.note }}</p>
+        {% endif %}
+        <p class="muted small">{{ correction.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% else %}
+  <p class="muted small">אין תיקונים לשאלה זו עדיין.</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

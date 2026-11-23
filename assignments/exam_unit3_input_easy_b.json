@@ -1,0 +1,90 @@
+{
+  "assignment_title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים - גרסה ב' (מקלה)",
+  "topic": "הבוחן בודק את יחידה 3: פקודת הקלט input והמרת טיפוסים (int, float). בכל גרסה 13 שאלות ב-100 נקודות: 10 שאלות אמריקאיות ו-3 שאלות מעקב ריצה. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א': שאלות אמריקאיות",
+      "weight": 70,
+      "questions": [
+        {
+          "id": "a1",
+          "type": "multiple_choice",
+          "question": "איזה טיפוס נתונים מחזירה פקודת הקלט input() לפני שמבצעים המרה? (bool (בוליאני) / str (מחרוזת) / float (מספר עשרוני) / int (מספר שלם))"
+        },
+        {
+          "id": "a2",
+          "type": "multiple_choice",
+          "question": "מה יודפס? המשתמש הקליד 20. (205 / 25 / 20 5 / שגיאה (TypeError))"
+        },
+        {
+          "id": "a3",
+          "type": "multiple_choice",
+          "question": "איזו שורה קולטת מספר עשרוני ושומרת אותו במשתנה price? (price = input(float(\"Enter price: \")) / price = float(input(\"Enter price: \")) / price = input(\"Enter price:\").float() / float price = input(\"Enter price:\"))"
+        },
+        {
+          "id": "a4",
+          "type": "multiple_choice",
+          "question": "מה יקרה אם המשתמש יקליד 2.5? (המשתנה count יקבל את הערך 2 / המשתנה count יקבל את הערך 2.5 / תתרחש שגיאת המרה (ValueError) / התוכנית תעגל את המספר ל-3)"
+        },
+        {
+          "id": "a5",
+          "type": "multiple_choice",
+          "question": "מה יודפס? המשתמש הקליד 5 ואז 2. (7 / 52 / 5 2 / שגיאה (TypeError))"
+        },
+        {
+          "id": "a6",
+          "type": "multiple_choice",
+          "question": "איזו שורה קולטת מספר שלם ושומרת אותו במשתנה age? (age = input(int(\"Enter age: \")) / age = int(input(\"Enter age: \")) / age = input(\"Enter age:\").int() / int age = input(\"Enter age:\"))"
+        },
+        {
+          "id": "a7",
+          "type": "multiple_choice",
+          "question": "מה יודפס? שימו לב לשתי פקודות ההדפסה. (A-B (בשורה אחת) / A ואז B בשתי שורות / AB / שגיאה (TypeError))"
+        },
+        {
+          "id": "a8",
+          "type": "multiple_choice",
+          "question": "מה יודפס? המשתמש הקליד 2010. (16 / 2010 / 20262010 / שגיאה (TypeError))"
+        },
+        {
+          "id": "a9",
+          "type": "multiple_choice",
+          "question": "מה תהיה התוצאה של float(\"2.5\")? (המספר העשרוני 2.5 / הטקסט 2.5 / המספר השלם 2 / שגיאה (ValueError))"
+        },
+        {
+          "id": "a10",
+          "type": "multiple_choice",
+          "question": "מה יודפס? המשתמש הקליד 8. (16 / 88 / 8 8 / שגיאה (TypeError))"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב': מעקב ריצה",
+      "weight": 30,
+      "questions": [
+        {
+          "id": "b1",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הנחה: המשתמש הקליד 7. כתבו את הפלט המדויק.",
+          "code": "num = int(input())\nprint(num + num)",
+          "expected_output": "14"
+        },
+        {
+          "id": "b2",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הנחה: המשתמש הקליד 5 ואז 3. כתבו את הפלט המדויק.",
+          "code": "a = input()\nb = input()\nprint(a + b)",
+          "expected_output": "53"
+        },
+        {
+          "id": "b3",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? שימו לב לפרמטר end. כתבו את הפלט המדויק.",
+          "code": "print(\"Bye\", end=\"!\")",
+          "expected_output": "Bye!"
+        }
+      ]
+    }
+  ]
+}

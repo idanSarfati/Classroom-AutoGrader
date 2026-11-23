@@ -1,0 +1,114 @@
+{
+  "assignment_title": "מבחן מקיף בפייתון - יחידות 1-3 - גרסה א'",
+  "topic": "המבחן בודק את יחידות 1-3: משתנים, טיפוסי נתונים, קלט ופלט, מעקב ריצה, תיקון שגיאות וכתיבת תוכנית מלאה. בכל גרסה 11 שאלות ב-100 נקודות. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א': שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "a1",
+          "type": "multiple_choice",
+          "question": "איזה משם המשתנים הבאים הוא תקין וחוקי בשפת Python? (3students / student_name / student#name / student?name)"
+        },
+        {
+          "id": "a2",
+          "type": "multiple_choice",
+          "question": "מה יהיה הטיפוס (data type) של המשתנה x? (int / float / str / bool)"
+        },
+        {
+          "id": "a3",
+          "type": "multiple_choice",
+          "question": "מה תדפיס הוראת הפלט הבאה למסך? (<class 'int'> / <class 'float'> / <class 'str'> / 45.0)"
+        },
+        {
+          "id": "a4",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט של קוד הפייתון הבא? (30 / 1020 / שגיאת הרצה / \"30\")"
+        },
+        {
+          "id": "a5",
+          "type": "multiple_choice",
+          "question": "מה יהיה הטיפוס (data type) של הערך במשתנה? (int / float / str / bool)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב': מעקב ריצה",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "b1",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? עקבו אחר הקוד וכתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "game = \"Minecraft\"\nlevel = 5\nprint(\"I play\", game, \"at level\", level)",
+          "expected_output": "I play Minecraft at level 5"
+        },
+        {
+          "id": "b2",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? עקבו אחר הקוד וכתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "a = 15\nb = 4\na = a + b\nb = a - b\nprint(\"a =\", a)\nprint(\"b =\", b)",
+          "expected_output": "a = 19\nb = 15"
+        },
+        {
+          "id": "b3",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הניחו שהמשתמש הזין את הערך 50. כתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "val1 = input(\"Enter a number: \")\nval2 = int(val1) + 10\nprint(type(val1))\nprint(val2)",
+          "expected_output": "<class 'str'>\n60"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג': תיקון שגיאות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "c1",
+          "type": "debugging",
+          "question": "מצאו את השגיאה וכתבו את הקוד המתוקן בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן כך שיפעל.",
+          "code": "age = input(\"Enter your age: \")\nnext_year = age + 1\nprint(\"Next year you will be\", next_year)",
+          "requirements": [
+            "התוכנית רצה",
+            "הפלט: Next year you will be 21",
+            "המקור ממיר ל-int"
+          ],
+          "corrected_code": "age = int(input(\"Enter your age: \"))\nnext_year = age + 1\nprint(\"Next year you will be\", next_year)"
+        },
+        {
+          "id": "c2",
+          "type": "debugging",
+          "question": "מצאו את השגיאה וכתבו את הקוד המתוקן המטרה היא להדפיס: Hello Dan, welcome back!. הסבירו מהי השגיאה וכתבו את הקוד המתוקן.",
+          "code": "user_name = \"Dan\"\nprint(\"Hello user_name, welcome back!\")",
+          "requirements": [
+            "התוכנית רצה",
+            "הפלט: Hello Dan, welcome back!",
+            "המקור מחבר את המשתנה"
+          ],
+          "corrected_code": "user_name = \"Dan\"\nprint(\"Hello\", user_name + \", welcome back!\")"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד': כתיבת קוד מלא",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "d1",
+          "type": "code_writing",
+          "question": "כתבו תוכנית מלאה כתבו תוכנית שקולטת שם של אדם (מחרוזת), גיל בשנים (מספר שלם) ומחיר כרטיס לקולנוע בשקלים (מספר עשרוני), ומדפיסה הודעה אחת שמשלבת את כל שלושת הנתונים עם כיתוב מתאים.",
+          "corrected_code": "name = input(\"Enter your name: \")\nage = int(input(\"Enter your age: \"))\nprice = float(input(\"Enter ticket price: \"))\nprint(\"Hello\", name, \"you are\", age, \"and the ticket costs\", price, \"shekels\")",
+          "requirements": [
+            "התוכנית רצה בשני הקלטים",
+            "הפלט בקלט הראשון",
+            "הפלט בקלט השני",
+            "המקור ממיר את הגיל ב-int",
+            "המקור ממיר את המחיר ב-float"
+          ]
+        }
+      ]
+    }
+  ]
+}

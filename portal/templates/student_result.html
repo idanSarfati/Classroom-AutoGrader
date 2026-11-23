@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}ההגשה שלי · {{ assignment.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/assignments/{{ assignment.id }}">{{ assignment.title }}</a>
+  <span aria-hidden="true">/</span>
+  <span>ההגשה שלי</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted">
+      {{ group.name }} · הוגש {{ submission.submitted_at|local_dt }}
+      {% if submission.revision > 1 %}· גרסה {{ submission.revision }}{% endif %}
+    </p>
+  </div>
+  <span class="badge {{ status_badges.get(submission.status, 'badge-type') }}">
+    {{ status_labels.get(submission.status, submission.status) }}
+  </span>
+</section>
+
+{% if submission.status in ('queued', 'grading') %}
+<section class="card" data-grading-pending
+         data-status-url="/student/submissions/{{ submission.id }}/grading-status">
+  <h2>ההגשה בבדיקה</h2>
+  <p>ההגשה נקלטה. הבדיקה רצה ברקע והעמוד יתעדכן אוטומטית כשהציון יגיע.</p>
+  <p class="muted">אפשר להמשיך ללמוד בינתיים - אין צורך להשאיר את העמוד פתוח.</p>
+</section>
+{% elif submission.status == 'deferred' %}
+<section class="card">
+  <h2>הבדיקה ממתינה</h2>
+  <p>
+    ההגשה נשמרה. המודל עמוס כרגע והבדיקה תרוץ אוטומטית כשהמכסה תתפנה.
+    אין צורך להגיש שוב.
+  </p>
+</section>
+{% elif submission.status == 'failed' %}
+<section class="card">
+  <h2>הבדיקה לא הצליחה</h2>
+  <p>אפשר לשלוח את הקוד שוב, או לבקש מהמורה להריץ בדיקה מחדש.</p>
+</section>
+{% endif %}
+
+{% if exam_release == 'held' %}
+{# The exam is marked, but its result is the teacher's to publish. Nothing
+   about the paper or the answers may appear here before that. #}
+<section class="card">
+  <h2>הציון טרם פורסם</h2>
+  <p>
+    המבחן הוגש ונבדק. המורה טרם פרסמה את התוצאות, ולכן הציון, הפירוט
+    והתשובות אינם מוצגים כאן עדיין.
+  </p>
+</section>
+{% endif %}
+
+{% if result %}
+<section class="card grade-card">
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ result.score }}">
+      <span class="score-number">{{ result.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      <h2>המשוב של המורה</h2>
+      {% set disq = result.disqualification %}
+      {% include "_disqualification_notice.html" %}
+      {% if exam_release == 'scores' %}
+      {# The score alone was published. The feedback names questions and
+         mistakes, so it stays back with the paper until a full release. #}
+      <p class="feedback-text">המורה פרסמה את הציון בלבד.</p>
+      {% else %}
+      <p class="feedback-text">{{ result.feedback }}</p>
+      {% endif %}
+      {% if result.late_penalty %}
+      <p class="muted">כולל ניכוי איחור: {{ result.late_penalty }} נק׳</p>
+      {% endif %}
+      <p class="muted">נבדק {{ result.graded_at|local_dt }}</p>
+      {% if exam_release == 'scores' %}
+      <p class="notice-inline">
+        המורה פרסמה את הציון בלבד. הפירוט והתשובות יופיעו כאן רק אם
+        יפורסמו.
+      </p>
+      {% endif %}
+      {% if result.historical %}
+      <p class="notice-inline">
+        זהו ציון היסטורי שהועבר מ-Google Classroom. הוא נכלל בממוצע שלכם,
+        אך אין עבורו קוד שהוגש או פירוט בדיקה במערכת.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% if result.tasks and exam_release != 'scores' %}
+<section class="card">
+  <div class="section-head">
+    <h2>הערכת המשימות</h2>
+    <span class="count">{{ result.tasks|length }}</span>
+  </div>
+  <ol class="question-list">
+    {% for task in result.tasks %}
+    {% set task_class = {
+      'CORRECT': 'status-ok',
+      'PARTIALLY_CORRECT': 'status-partial',
+      'INCORRECT': 'status-bad',
+      'MISSING': 'status-missing'
+    } %}
+    <li class="question-card">
+      <div class="question-head">
+        <strong>{{ task.task_name }}</strong>
+        <span class="status-chip {{ task_class.get(task.status, 'status-missing') }}">
+          {{ task_status_labels.get(task.status, task.status) }}
+        </span>
+      </div>
+      {% if task.student_answer_found %}
+      <p class="muted">מהתשובה שלכם: <span dir="ltr">{{ task.student_answer_found }}</span></p>
+      {% endif %}
+      {% if task.notes %}
+      <p class="question-text">{{ task.notes }}</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+{% if result.deductions and exam_release != 'scores' %}
+<section class="card">
+  <div class="section-head">
+    <h2>ניכוי נקודות</h2>
+  </div>
+  <ul class="deduction-list">
+    {% for item in result.deductions %}
+    <li>
+      <span class="deduction-points">-{{ item.points_deducted }}</span>
+      <div>
+        <strong>{{ item.task_name }}</strong>
+        <p class="muted">{{ item.reason }}</p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endif %}
+
+{% if submission.text and exam_release not in ('scores', 'held') %}
+<section class="card">
+  <div class="section-head">
+    <h2>הקוד שהוגש</h2>
+  </div>
+  <pre class="code-block" dir="ltr"><code>{{ submission.text }}</code></pre>
+  {% if not exam_release %}
+  <div class="row-actions">
+    <a class="button button-secondary" href="/student/assignments/{{ assignment.id }}#submission">
+      להגשת גרסה חדשה
+    </a>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

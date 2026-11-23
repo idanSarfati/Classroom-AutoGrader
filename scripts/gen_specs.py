@@ -1,0 +1,50 @@
+import json
+import os
+
+CONFIG_DIR = "configs"
+os.makedirs(CONFIG_DIR, exist_ok=True)
+
+spec_a = {
+    "assignment_title": "מבחן מקיף בפייתון - יחידות 1-3 - גרסה א",
+    "topic": "מבחן רבעוני",
+    "total_points": 100,
+    "sections": [
+        {
+            "section_name": "חלק א: שאלות אמריקאיות",
+            "weight": 20,
+            "questions": [
+                {"id": "q1", "type": "multiple_choice", "question": "מהו סוג הפלט של פונקציית הקלט input()?", "correct_answer": "str"},
+                {"id": "q2", "type": "multiple_choice", "question": "מהו סוג הפלט של type(data) כאשר data = 7.0?", "correct_answer": "<class 'float'>"},
+                {"id": "q3", "type": "multiple_choice", "question": "איזו מהאפשרויות אינה חוקית כמשתנה בשם משום שהיא מתחיל במספר?", "correct_answer": "א"},
+                {"id": "q4", "type": "multiple_choice", "question": "מהי התוצאה של הפעלת הקוד: x = x + 1?", "correct_answer": "לא ניתן לקבוע ללא ידיעת הערך הראשוני של x"}
+            ]
+        },
+        {
+            "section_name": "חלק ב: מעקב ריצה",
+            "weight": 20,
+            "questions": [
+                {"id": "q1", "type": "expected_output", "question": "בהנחה שהזין המשתמש ערך 50", "code": "a = 19\nb = 15\nprint(a)\nprint(type(a))\nprint(50)", "expected_output": "19\n<class 'int'>\n50"},
+                {"id": "q2", "type": "expected_output", "question": "מהו הפלט של התכנית הבאה:", "code": "x = 26\ny = 20\nprint(x)\nprint(y)\nprint('Current temperature in Haifa is 24')", "expected_output": "26\n20\nCurrent temperature in Haifa is 24"}
+            ]
+        },
+        {
+            "section_name": "חלק ג: תיקון שגיאות",
+            "weight": 25,
+            "questions": [
+                {"id": "q1", "type": "debugging", "question": "חיבור מחרוזת ומספר שלם באמצעות +", "code": "age = input('Enter your age: ')\nnext_year = age + 1\nprint('Next year you will be', next_year)", "corrected_code": "age = int(input('Enter your age: '))\nnext_year = age + 1\nprint('Next year you will be', next_year)"},
+                {"id": "q2", "type": "debugging", "question": "שגיאה בשם משתנה בתוך מירכאות", "code": 'user_name = "Dan"\nprint("Hello", user_name, "welcome back!")', "corrected_code": 'user_name = "Dan"\nprint("Hello", user_name, "welcome back!")'}
+            ]
+        },
+        {
+            "section_name": "חלק ד: כתיבת קוד",
+            "weight": 35,
+            "questions": [
+                {"id": "q1", "type": "code_writing", "question": "כתיבת קוד מלא", "code": "name = input('Enter your name: ')\nage = int(input('Enter your age: '))\nticket_price = float(input('Enter movie ticket price: '))\nprint('Hello', name, 'you are', age, 'years old and your ticket costs', ticket_price, 'NIS')", "requirements": ["קלט שם", "קלט גיל כמספר שלם", "קלט מחיר כמספר עשרוני", "פלט כולל את כל הנתונים"]}
+            ]
+        }
+    ]
+}
+
+with open(os.path.join(CONFIG_DIR, "גרסה-א-spec.json"), 'w', encoding='utf-8') as f:
+    json.dump(spec_a, f, ensure_ascii=False, indent=2)
+print("Created גרסה-א-spec.json")

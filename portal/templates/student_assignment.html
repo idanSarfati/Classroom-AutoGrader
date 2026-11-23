@@ -1,0 +1,939 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set base = preview_base if preview else '/student' %}
+{% set type_labels = {
+  'multiple_choice': 'שאלה אמריקאית',
+  'expected_output': 'מעקב ריצה',
+  'debugging': 'תיקון שגיאות',
+  'code_writing': 'כתיבת קוד'
+} %}
+
+{# One requirement, then its own answer frame. The macro is used by both the
+   student form and the read-only teacher preview so the two cannot drift. #}
+
+{# A small IDE: syntax-highlighted code on top, output console in the same
+   frame. The real <textarea> stays underneath (transparent text) so the form
+   still submits exactly what the student typed and the sandbox still reads
+   the same value. #}
+{% macro ide_editor(editor_id, field_name, value, maxlength, required=False) %}
+<div class="ide" data-ide>
+  <div class="ide-toolbar" dir="ltr">
+    <span class="ide-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span class="ide-filename">main.py</span>
+    <span class="ide-meta" data-char-count aria-live="polite"></span>
+    <button type="button" class="ide-run" data-run-code>
+      <span class="ide-run-icon" aria-hidden="true">&#9654;</span>
+      Run code
+    </button>
+  </div>
+  <div class="ide-editor">
+    <div class="ide-gutter" data-ide-gutter aria-hidden="true"><span>1</span></div>
+    <div class="ide-code">
+      <pre class="ide-highlight" aria-hidden="true"><code data-ide-highlight></code></pre>
+      <textarea id="{{ editor_id }}" name="{{ field_name }}"
+                class="ide-input" rows="10"
+                maxlength="{{ maxlength }}"
+                dir="ltr" spellcheck="false" autocapitalize="off"
+                autocomplete="off" wrap="off"
+                data-code-editor data-answer-editor
+                {% if required %}required{% endif %}
+                placeholder="x = 5&#10;print(x)">{{ value }}</textarea>
+    </div>
+  </div>
+  <section class="ide-output" data-sandbox-output aria-live="polite">
+    <div class="terminal-head">
+      <span class="ide-output-title">Output</span>
+      <span class="terminal-status" data-sandbox-status>Ready</span>
+      <button type="button" class="terminal-clear" data-sandbox-clear>
+        Clear
+      </button>
+    </div>
+    <pre class="terminal-output terminal-stdout" data-sandbox-stdout></pre>
+    <pre class="terminal-output terminal-stderr" data-sandbox-stderr></pre>
+    <p class="ide-output-empty" data-ide-output-empty>
+      Output will appear here after you click "Run code"
+    </p>
+    <div class="ide-console-input" data-console-input hidden>
+      <span class="ide-console-prompt" aria-hidden="true">&gt;</span>
+      <input type="text" data-console-line dir="ltr"
+             autocomplete="off" autocapitalize="off" spellcheck="false"
+             placeholder="Type input and press Enter"
+             aria-label="Program input">
+    </div>
+  </section>
+</div>
+{% endmacro %}
+
+{% macro answer_card(question, answer, is_preview) %}
+<section class="question-card worksheet-question" id="q{{ question.number }}" data-answer-block>
+  <div class="question-head">
+    <span class="question-number">שאלה {{ question.number }}</span>
+    {% if question.id_label %}
+    <span class="question-id" dir="ltr">{{ question.id_label }}</span>
+    {% endif %}
+    {% if question.type %}
+    <span class="badge badge-type">{{ type_labels.get(question.type, question.type) }}</span>
+    {% endif %}
+  </div>
+  {% if question.title %}
+  <h3 class="worksheet-title">{{ question.title }}</h3>
+  {% endif %}
+  {% if question.prompt %}
+  <p class="question-text">{{ question.prompt }}</p>
+  {% endif %}
+  {% if question.code %}
+  <pre class="code-block" dir="ltr"><code>{{ question.code }}</code></pre>
+  {% endif %}
+  {% if question.requirements %}
+  <div class="criteria">
+    <h4>מה נדרש</h4>
+    <ul>
+      {% for requirement in question.requirements %}
+      <li>{{ requirement }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if is_preview %}
+  <p class="notice-inline worksheet-preview-slot">
+    בתצוגת התלמיד מופיע כאן
+    {% if question.is_code %}מקום לכתיבת הקוד וכפתור "Run code"{% else %}מקום לכתיבת התשובה{% endif %}.
+  </p>
+  {% else %}
+  {% if question.is_code %}
+  {{ ide_editor(
+       'answer-' ~ question.number,
+       question.field_name,
+       answer,
+       max_submission_chars|default(200000)
+     ) }}
+  {% else %}
+  <label class="answer-label" for="answer-{{ question.number }}">
+    התשובה שלכם
+  </label>
+  <textarea id="answer-{{ question.number }}" name="{{ question.field_name }}"
+            rows="4"
+            maxlength="{{ max_submission_chars|default(200000) }}"
+            dir="ltr" spellcheck="false" autocapitalize="off" autocomplete="off"
+            data-answer-editor
+            placeholder="כתבו כאן את התשובה">{{ answer }}</textarea>
+  <div class="answer-tools">
+    <span class="hint" data-char-count aria-live="polite"></span>
+  </div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endmacro %}
+
+{# ---------------------------------------------------------------- mixed x.3
+   One part of a curated worksheet: code IDE, one-line code, short answer,
+   trace table or true/false choices. Field names come from the spec, so the
+   server can rebuild every value without parsing Hebrew text. #}
+{% macro worksheet_part(item, part, item_values, is_preview, max_chars) %}
+{% set part_value = item_values.get(part.key) %}
+<div class="worksheet-part worksheet-part-{{ part.kind }}" data-part="{{ part.key }}">
+  {% if part.label or part.prompt %}
+  <div class="part-head">
+    {% if part.label %}<span class="part-label">{{ part.label }}</span>{% endif %}
+    {% if part.prompt %}<p class="part-prompt">{{ part.prompt }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  {% if part.given %}
+  {# Read-only question text: the snippet to trace or to fix. No field. #}
+  <pre class="code-block worksheet-code worksheet-given" dir="ltr"><code>{{ part.code }}</code></pre>
+
+  {% else %}
+  {% if part.code %}
+  <pre class="code-block worksheet-code" dir="ltr"><code>{{ part.code }}</code></pre>
+  {% endif %}
+
+  {% if part.kind == 'code' %}
+    {% if is_preview %}
+    <p class="notice-inline worksheet-preview-slot">
+      בתצוגת התלמיד מופיע כאן עורך קוד עם כפתור "Run code".
+    </p>
+    {% else %}
+    {{ ide_editor(
+         'answer-' ~ item.key ~ '-' ~ part.key,
+         part.value_name(item.key),
+         part_value if part_value is string else part.code,
+         max_chars
+       ) }}
+    {% endif %}
+
+  {% elif part.kind == 'code_plain' %}
+    {% if is_preview %}
+    <p class="notice-inline worksheet-preview-slot">
+      בתצוגת התלמיד מופיע כאן תיבת קוד (בלי כפתור הרצה).
+    </p>
+    {% else %}
+    {# A plain code box on purpose: an exam that can run the program is no
+       longer asking the student to predict what it does. #}
+    <textarea class="code-plain-input" rows="{{ [part.code.count('\n') + 3, 4]|max }}"
+              name="{{ part.value_name(item.key) }}"
+              maxlength="{{ max_chars }}"
+              dir="ltr" spellcheck="false" autocapitalize="off"
+              autocomplete="off" wrap="off"
+              data-answer-editor
+              placeholder="{{ part.placeholder or 'כתבו כאן קוד' }}">{{ part_value if part_value is string else '' }}</textarea>
+    <div class="answer-tools">
+      <span class="hint" data-char-count aria-live="polite"></span>
+    </div>
+    {% endif %}
+
+  {% elif part.kind == 'code_line' %}
+    {% if is_preview %}
+    <p class="notice-inline worksheet-preview-slot">
+      בתצוגת התלמיד מופיע כאן שדה שורת קוד.
+    </p>
+    {% else %}
+    <input type="text" class="code-line-input" dir="ltr"
+           name="{{ part.value_name(item.key) }}"
+           value="{{ part_value if part_value is string else '' }}"
+           maxlength="500" spellcheck="false" autocapitalize="off"
+           autocomplete="off"
+           placeholder="{{ part.placeholder }}"
+           aria-label="{{ part.prompt or 'שורת קוד' }}">
+    {% endif %}
+
+  {% elif part.kind == 'short' %}
+    {% if is_preview %}
+    <p class="notice-inline worksheet-preview-slot">
+      בתצוגת התלמיד מופיע כאן שדה תשובה קצרה.
+    </p>
+    {% else %}
+    <textarea class="short-input" rows="3"
+              name="{{ part.value_name(item.key) }}"
+              maxlength="20000"
+              placeholder="{{ part.placeholder or 'כתבו כאן את התשובה' }}">{{ part_value if part_value is string else '' }}</textarea>
+    {% endif %}
+
+  {% elif part.kind == 'table' %}
+  {% set table_value = part_value if part_value is not string and part_value else [] %}
+  <div class="worksheet-table-wrap">
+    <table class="worksheet-table">
+      <thead>
+        <tr>
+          {% for column in part.columns %}
+          <th scope="col">{{ column.label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in part.rows %}
+        {% set row_index = loop.index0 %}
+        <tr>
+          {% for column in part.columns %}
+          {% if column.readonly %}
+          <td class="given">
+            {% if column.code %}<pre dir="ltr">{{ row.cells[loop.index0] }}</pre>
+            {% else %}{{ row.cells[loop.index0] }}{% endif %}
+          </td>
+          {% else %}
+          {% set stored = table_value[row_index].get(column.key) if table_value|length > row_index and table_value[row_index] is mapping else '' %}
+          <td>
+            <input type="text" class="table-input" dir="ltr"
+                   name="{{ part.table_name(item.key, row_index, column.key) }}"
+                   value="{{ stored }}" maxlength="500"
+                   spellcheck="false" autocomplete="off"
+                   {% if is_preview %}disabled{% endif %}
+                   aria-label="{{ column.label }} — שורה {{ row_index + 1 }}">
+          </td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% elif part.kind == 'choice' %}
+  {% set choice_value = part_value if part_value is not string and part_value else [] %}
+  <div class="worksheet-choice">
+    {% for statement in part.statements %}
+    {% set statement_index = loop.index0 %}
+    {% set chosen = choice_value[statement_index] if choice_value|length > statement_index else '' %}
+    <div class="choice-row">
+      <div class="choice-statement">
+        <span class="choice-index">{{ statement_index + 1 }}.</span>
+        <div>
+          <p class="choice-prompt">{{ statement.prompt }}</p>
+          {% if statement.code %}
+          <pre class="choice-code" dir="ltr"><code>{{ statement.code }}</code></pre>
+          {% endif %}
+        </div>
+      </div>
+      <div class="choice-options" role="radiogroup"
+           aria-label="{{ statement.prompt }}">
+        {% for option in part.options_for(statement) %}
+        <label class="choice-option">
+          <input type="radio"
+                 name="{{ part.choice_name(item.key, statement_index) }}"
+                 value="{{ option }}"
+                 {% if chosen == option %}checked{% endif %}
+                 {% if is_preview %}disabled{% endif %}>
+          <span>{{ option }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro worksheet_item(item, values, is_preview, max_chars) %}
+{% set item_values = values.get(item.key) or {} %}
+<section class="question-card worksheet-question worksheet-item"
+         id="q{{ item.number }}" data-answer-block data-worksheet-item>
+  <div class="question-head">
+    <span class="question-number">{{ item.label }}</span>
+    {% if item.points %}
+    <span class="weight-chip">{{ item.points }} נק׳</span>
+    {% elif item.parts|length > 1 %}
+    <span class="badge badge-type">מספר סעיפים</span>
+    {% endif %}
+  </div>
+  <h3 class="worksheet-title">{{ item.title }}</h3>
+  {% if item.intro %}
+  <p class="question-text worksheet-prompt">{{ item.intro }}</p>
+  {% endif %}
+  {% for part in item.parts %}
+  {{ worksheet_part(item, part, item_values, is_preview, max_chars) }}
+  {% endfor %}
+</section>
+{% endmacro %}
+
+{% macro worksheet_sections(worksheet, values, is_preview, max_chars) %}
+{# Homework sheets have one unnamed group, so nothing is added. An exam shows
+   one heading per scored part with the points that part is worth. #}
+{% for section_name, section_items in worksheet.sections() %}
+{% if section_name %}
+<div class="worksheet-section-head">
+  <h3>{{ section_name }}</h3>
+  <span class="weight-chip">{{ section_items|sum(attribute='points') }} נק׳</span>
+</div>
+{% endif %}
+{% for item in section_items %}
+{{ worksheet_item(item, values, is_preview, max_chars) }}
+{% endfor %}
+{% endfor %}
+{% endmacro %}
+
+{% if preview %}{% include "_preview_banner.html" %}{% endif %}
+<nav class="breadcrumb" aria-label="מיקום">
+  {% if preview %}
+  <a href="/teacher/classes/{{ group.id }}">ניהול הכיתה</a>
+  <span aria-hidden="true">/</span>
+  <a href="{{ base }}/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+  {% else %}
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+  {% endif %}
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted">
+      {{ group.name }}
+      {% if assignment.due_at %} · להגשה עד {{ assignment.due_at|local_dt }}{% endif %}
+    </p>
+  </div>
+</section>
+
+{% if exam %}
+{# An exam is not homework: it has a version, a window and one hand-in. The
+   card states those three facts before the first question, so nothing about
+   the rules has to be guessed. #}
+<section class="card exam-card" aria-label="פרטי המבחן">
+  <div class="section-head">
+    <h2>פרטי המבחן</h2>
+    <span class="badge badge-type" data-exam-version>{{ exam_version_label }}</span>
+  </div>
+  <ul class="exam-facts">
+    <li><strong>{{ exam_total_points }}</strong> נקודות</li>
+    <li>הגשה אחת בלבד</li>
+    {% if exam_opens_at %}<li>נפתח {{ exam_opens_at|local_dt }}</li>{% endif %}
+    {% if exam_closes_at %}<li>נסגר {{ exam_closes_at|local_dt }}</li>{% endif %}
+  </ul>
+  {% if exam.instructions %}
+  <p class="muted">{{ exam.instructions }}</p>
+  {% endif %}
+  {% if exam_locked %}
+  <p class="notice-inline">
+    המבחן הוגש. זו התצוגה של ההגשה שלכם - אי אפשר לשנות אותה או להגיש שוב.
+  </p>
+  {% elif exam_state == 'open' %}
+  <p class="notice-inline">
+    לכל תלמיד מוצגת גרסה אחרת, והשאלות מסודרות אחרת אצל כל אחד.
+    ענו על כולן ואז שלחו פעם אחת. אם לא תשלחו עד מועד הסגירה, המבחן
+    יישלח אוטומטית עם מה שכתבתם.
+  </p>
+  {% endif %}
+</section>
+{% elif assignment.due_at %}
+<p class="notice-inline">
+  אפשר להגיש גם אחרי תאריך היעד. הגשה אחרי המועד תבדק עם ניכוי
+  {{ late_penalty_points }} נקודות בגין איחור.
+</p>
+{% endif %}
+
+{% if exam and exam_state == 'open' and not exam_locked and exam_closes_at %}
+{# The clock stays in view while the answers scroll. The deadline is the
+   server's closing instant, so a wrong clock on the device cannot extend the
+   exam; the submit route enforces the same instant. #}
+<div class="exam-clock" data-exam-clock role="timer" aria-live="off"
+     data-server-now="{{ server_now.strftime('%Y-%m-%dT%H:%M:%SZ') if server_now else '' }}">
+  <span class="exam-clock-title">נותר זמן למבחן</span>
+  <span class="exam-clock-time" data-exam-countdown
+        data-deadline="{{ exam_closes_at.strftime('%Y-%m-%dT%H:%M:%SZ') }}">--:--</span>
+  <span class="exam-clock-meta">
+    נסגר {{ exam_closes_at|local_dt }} · ההגשה נשלחת אוטומטית בסוף הזמן
+  </span>
+</div>
+{% endif %}
+
+{% if questions or worksheet %}
+{# The imported Docs page usually repeats the old exercise table. With the
+   per-question frames below it would push the first requirement off screen,
+   so it stays available but collapsed. #}
+<details class="card notes-disclosure">
+  <summary>הוראות והסבר כלליים</summary>
+  {% if content and content.body_html %}
+  <div class="prose rich-text">{{ content.body_html|safe }}</div>
+  {% elif assignment.instructions %}
+  <div class="prose">{{ assignment.instructions }}</div>
+  {% else %}
+  <p class="muted">אין הוראות נוספות. הגישו לפי מה שלמדתם בשיעור.</p>
+  {% endif %}
+</details>
+{% else %}
+<section class="card">
+  <h2>הוראות</h2>
+  {% if content and content.body_html %}
+  <div class="prose rich-text">{{ content.body_html|safe }}</div>
+  {% elif assignment.instructions %}
+  <div class="prose">{{ assignment.instructions }}</div>
+  {% else %}
+  <p class="muted">אין הוראות נוספות. הגישו לפי מה שלמדתם בשיעור.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if attachments %}
+{% set mime_labels = {
+  'application/pdf': 'PDF',
+  'image/webp': 'תמונה',
+  'image/png': 'תמונה',
+  'image/jpeg': 'תמונה',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+  'application/msword': 'Word'
+} %}
+<section class="card">
+  <div class="section-head">
+    <h2>קבצים מצורפים <span class="count">{{ attachments|length }}</span></h2>
+  </div>
+  <ul class="import-attachments media-list">
+    {% for attachment in attachments %}
+    <li>
+      <a href="{{ base }}/assignments/{{ assignment.id }}/media/{{ attachment.id }}">
+        {{ attachment.title }}
+      </a>
+      <span class="badge badge-type">{{ mime_labels.get(attachment.mime_type, 'קובץ') }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if worksheet %}
+{# A curated x.3 sheet: every exercise keeps its own shape (code, blanks,
+   table, true/false), so the page mirrors the Doc instead of forcing every
+   item into a code frame. Everything is still one graded document. #}
+<section class="card worksheet worksheet-mixed" id="submission"
+         aria-label="דף העבודה"
+         {% if submission and submission.status in ('queued', 'grading') %}data-grading-pending data-status-url="/student/assignments/{{ assignment.id }}/grading-status"{% endif %}>
+  <div class="section-head">
+    <h2>{{ 'דף המבחן' if exam else 'דף העבודה' }}</h2>
+    {% if preview %}
+    <span class="badge badge-draft">תצוגת מורה</span>
+    {% else %}
+    <span class="hidden-answers-chip" title="התשובות והפתרונות אינם נשלחים לדפדפן">
+      התשובות מוסתרות
+    </span>
+    {% endif %}
+  </div>
+  {% if worksheet.title %}
+  <p class="muted">{{ worksheet.title }}</p>
+  {% endif %}
+  <p class="hint worksheet-hint">
+    {% if worksheet.note %}{{ worksheet.note }}
+    {% else %}ענו במקום המתאים בכל תרגיל. אפשר להגיש גם תשובה חלקית.{% endif %}
+  </p>
+
+  {% if preview %}
+  <p class="notice-inline">
+    בתצוגת תלמיד יופיע כאן דף העבודה עם מקום לכל סעיף וכפתור הגשה.
+    בתצוגת מורה אין טופס ואין ציונים.
+  </p>
+  {% else %}
+  <div class="worksheet-status">
+    {% if submission %}
+    <span class="badge {{ status_badges.get(submission.status, 'badge-type') }}">
+      {{ status_labels.get(submission.status, submission.status) }}
+    </span>
+    <span class="muted small">
+      הוגש לראשונה: {{ submission.first_submitted_at|local_dt }}
+      · גרסה אחרונה: {{ submission.submitted_at|local_dt }}
+    </span>
+    {% else %}
+    <span class="badge badge-draft">טרם הוגש</span>
+    {% endif %}
+  </div>
+
+  {% if submission and submission.status in ('queued', 'grading') %}
+  <p class="notice-inline">
+    {% if exam %}המבחן הוגש ונבדק. התוצאה תופיע כאן בעוד רגע.
+    {% else %}ההגשה נשמרה ונבדקת ברקע. אפשר להמשיך ללמוד - העמוד יתעדכן לבד כשהציון יגיע.{% endif %}
+  </p>
+  {% elif submission and submission.status == 'deferred' %}
+  <p class="notice-inline">
+    ההגשה נשמרה. המודל עמוס כרגע, והבדיקה תרוץ אוטומטית מאוחר יותר.
+    אין צורך להגיש שוב.
+  </p>
+  {% elif submission and submission.status == 'failed' %}
+  <p class="flash flash-error">
+    הבדיקה לא הצליחה. אפשר לשלוח שוב, או לבקש מהמורה להריץ בדיקה מחדש.
+  </p>
+  {% endif %}
+
+  {% if grade_view %}
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ grade_view.score }}">
+      <span class="score-number">{{ grade_view.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      <p class="feedback-text">{{ grade_view.feedback }}</p>
+      {% set disq = grade_view.disqualification %}
+      {% include "_disqualification_notice.html" %}
+      {% if grade_view.late_penalty %}
+      <p class="muted">כולל ניכוי איחור: {{ grade_view.late_penalty }} נק׳</p>
+      {% endif %}
+      <a class="button button-secondary" href="/student/submissions/{{ submission.id }}">
+        פירוט מלא של הבדיקה
+      </a>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if preview %}
+  {{ worksheet_sections(worksheet, worksheet_values|default({}), true, max_submission_chars|default(200000)) }}
+  <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">חזרה לניהול הכיתה</a>
+  {% elif exam_locked %}
+  {# The paper as it was sat: the same version and order, their answers, no
+     way to edit or send again. A disabled fieldset keeps every widget's
+     real control (radios, tables, code box) without making it submittable. #}
+  <fieldset class="exam-locked" disabled aria-label="המבחן שהוגש">
+    {{ worksheet_sections(worksheet, worksheet_values|default({}), false, max_submission_chars|default(200000)) }}
+  </fieldset>
+  {% else %}
+  <form method="post" action="/student/assignments/{{ assignment.id }}/submit"
+        class="stack submission-form worksheet-form" data-submit-form
+        data-draft-url="/student/assignments/{{ assignment.id }}/draft"
+        data-sandbox-url="/student/sandbox/run"
+        data-sandbox-sessions-url="/student/sandbox/sessions">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    {% if draft_restored %}
+    <p class="notice-inline">
+      שחזרנו את הטיוטה ששמרת. אפשר להמשיך מהמקום שבו עצרת.
+    </p>
+    {% endif %}
+
+    {{ worksheet_sections(worksheet, worksheet_values|default({}), false, max_submission_chars|default(200000)) }}
+    {% if legacy_text %}
+    <details class="legacy-submission">
+      <summary>ההגשה הקודמת שלכם (טקסט אחד)</summary>
+      <pre class="code-block legacy-text" dir="ltr">{{ legacy_text }}</pre>
+      <p class="hint">
+        ההגשה הזו נעשתה לפני שדף העבודה חולק לסעיפים. אם תשלחו עכשיו
+        תשובות חדשות, היא תוחלף בהגשה החדשה.
+      </p>
+    </details>
+    {% endif %}
+
+    <div class="submit-bar" data-submit-bar>
+      <div class="submit-bar-info">
+        <span class="muted" data-answered-count aria-live="polite">
+          נענו {{ answered_count|default(0) }} מתוך {{ worksheet.items|length }}
+        </span>
+        <span class="hint">
+          {% if exam %}
+          אפשר להגיש פעם אחת בלבד. אחרי השליחה אי אפשר לשנות תשובות,
+          ושאלות ריקות יסומנו כחסרות. התשובות נשמרות אוטומטית עד ההגשה.
+          {% else %}
+          אפשר להגיש גם תשובה חלקית; תרגילים ריקים יסומנו כחסרים.
+          התשובות נשמרות אוטומטית גם לפני ההגשה.
+          {% endif %}
+        </span>
+      </div>
+      <button type="submit" class="button button-primary"
+              {% if exam %}data-exam-submit{% endif %}>
+        {% if exam %}שליחת המבחן
+        {% elif submission %}שליחה מחדש לבדיקה
+        {% else %}שליחת ההגשה{% endif %}
+      </button>
+      <span class="muted" data-submit-status role="status"></span>
+      <span class="muted" data-draft-status role="status" aria-live="polite">
+        {% if draft_restored %}הטיוטה שלך שוחזרה{% endif %}
+      </span>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% elif questions %}
+{# A lesson x.2 worksheet: each requirement is followed by its own answer
+   frame, so the student never has to guess which block belongs to which
+   question. Everything is still submitted as one document. #}
+<section class="card worksheet" id="submission" aria-label="מחוון המטלה"
+         {% if submission and submission.status in ('queued', 'grading') %}data-grading-pending data-status-url="/student/assignments/{{ assignment.id }}/grading-status"{% endif %}>
+  <div class="section-head">
+    <h2>מחוון המטלה</h2>
+    {% if preview %}
+    <span class="badge badge-draft">תצוגת מורה</span>
+    {% else %}
+    <span class="hidden-answers-chip" title="התשובות והפתרונות אינם נשלחים לדפדפן">
+      התשובות מוסתרות
+    </span>
+    {% endif %}
+  </div>
+  {% if rubric.topic %}
+  <p class="muted">{{ rubric.topic }}</p>
+  {% endif %}
+  <p class="hint worksheet-hint">
+    לכל שאלה מוצגת הדרישה, ומתחתיה מקום לכתוב את הפתרון.
+    אפשר להריץ כל קטע בנפרד לפני ההגשה.
+  </p>
+
+  {% if preview %}
+  <p class="notice-inline">
+    בתצוגת תלמיד יופיע כאן מקום כתיבה לכל שאלה וכפתור הגשה.
+    בתצוגת מורה אין טופס ואין ציונים.
+  </p>
+  {% else %}
+  <div class="worksheet-status">
+    {% if submission %}
+    <span class="badge {{ status_badges.get(submission.status, 'badge-type') }}">
+      {{ status_labels.get(submission.status, submission.status) }}
+    </span>
+    <span class="muted small">
+      הוגש לראשונה: {{ submission.first_submitted_at|local_dt }}
+      · גרסה אחרונה: {{ submission.submitted_at|local_dt }}
+    </span>
+    {% else %}
+    <span class="badge badge-draft">טרם הוגש</span>
+    {% endif %}
+  </div>
+
+  {% if submission and submission.status in ('queued', 'grading') %}
+  <p class="notice-inline">
+    ההגשה נשמרה ונבדקת ברקע. אפשר להמשיך ללמוד - העמוד יתעדכן לבד כשהציון יגיע.
+  </p>
+  {% elif submission and submission.status == 'deferred' %}
+  <p class="notice-inline">
+    ההגשה נשמרה. המודל עמוס כרגע, והבדיקה תרוץ אוטומטית מאוחר יותר.
+    אין צורך להגיש שוב.
+  </p>
+  {% elif submission and submission.status == 'failed' %}
+  <p class="flash flash-error">
+    הבדיקה לא הצליחה. אפשר לשלוח שוב, או לבקש מהמורה להריץ בדיקה מחדש.
+  </p>
+  {% endif %}
+
+  {% if grade_view %}
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ grade_view.score }}">
+      <span class="score-number">{{ grade_view.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      <p class="feedback-text">{{ grade_view.feedback }}</p>
+      {% set disq = grade_view.disqualification %}
+      {% include "_disqualification_notice.html" %}
+      {% if grade_view.late_penalty %}
+      <p class="muted">כולל ניכוי איחור: {{ grade_view.late_penalty }} נק׳</p>
+      {% endif %}
+      <a class="button button-secondary" href="/student/submissions/{{ submission.id }}">
+        פירוט מלא של הבדיקה
+      </a>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {% if preview %}
+  {% set ns = namespace(section='') %}
+  {% for question in questions %}
+  {% if question.section and question.section != ns.section %}
+  {% set ns.section = question.section %}
+  <div class="worksheet-section-head">
+    <h3>{{ question.section }}</h3>
+    {% if question.weight %}<span class="weight-chip">{{ question.weight }} נק׳</span>{% endif %}
+  </div>
+  {% endif %}
+  {{ answer_card(question, '', true) }}
+  {% endfor %}
+  <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">חזרה לניהול הכיתה</a>
+  {% else %}
+  <form method="post" action="/student/assignments/{{ assignment.id }}/submit"
+        class="stack submission-form worksheet-form" data-submit-form
+        data-draft-url="/student/assignments/{{ assignment.id }}/draft"
+        data-sandbox-url="/student/sandbox/run"
+        data-sandbox-sessions-url="/student/sandbox/sessions">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    {% if draft_restored %}
+    <p class="notice-inline">
+      שחזרנו את הטיוטה ששמרת. אפשר להמשיך מהמקום שבו עצרת.
+    </p>
+    {% endif %}
+
+    {% set ns = namespace(section='') %}
+    {% for question in questions %}
+    {% if question.section and question.section != ns.section %}
+    {% set ns.section = question.section %}
+    <div class="worksheet-section-head">
+      <h3>{{ question.section }}</h3>
+      {% if question.weight %}<span class="weight-chip">{{ question.weight }} נק׳</span>{% endif %}
+    </div>
+    {% endif %}
+    {{ answer_card(question, answers.get(question.key, ''), false) }}
+    {% endfor %}
+
+    {% if legacy_text %}
+    <details class="legacy-submission">
+      <summary>ההגשה הקודמת שלכם (טקסט אחד)</summary>
+      <pre class="code-block legacy-text" dir="ltr">{{ legacy_text }}</pre>
+      <p class="hint">
+        ההגשה הזו נעשתה לפני שחולקה לשאלות. אם תשלחו עכשיו תשובות חדשות,
+        היא תוחלף בהגשה החדשה.
+      </p>
+    </details>
+    {% endif %}
+
+    <div class="submit-bar" data-submit-bar>
+      <div class="submit-bar-info">
+        <span class="muted" data-answered-count aria-live="polite">
+          נענו {{ answered_count|default(0) }} מתוך {{ questions|length }}
+        </span>
+        <span class="hint">
+          אפשר להגיש גם תשובה חלקית; שאלות ריקות יסומנו כחסרות.
+          התשובות נשמרות אוטומטית גם לפני ההגשה.
+        </span>
+      </div>
+      <button type="submit" class="button button-primary">
+        {{ 'שליחה מחדש לבדיקה' if submission else 'שליחת ההגשה' }}
+      </button>
+      <span class="muted" data-submit-status role="status"></span>
+      <span class="muted" data-draft-status role="status" aria-live="polite">
+        {% if draft_restored %}הטיוטה שלך שוחזרה{% endif %}
+      </span>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% else %}
+{# A rubric without recognizable items keeps the original single text box, so
+   no assignment becomes unusable after this layout change. #}
+{% if rubric %}
+<section class="card" aria-label="מחוון המטלה">
+  <div class="section-head">
+    <h2>מחוון המטלה</h2>
+    <span class="hidden-answers-chip" title="התשובות והפתרונות אינם נשלחים לדפדפן">
+      התשובות מוסתרות
+    </span>
+  </div>
+  {% if rubric.topic %}
+  <p class="muted">{{ rubric.topic }}</p>
+  {% endif %}
+
+  {% if rubric.schema == 'spec' %}
+  {% for section in rubric.sections %}
+  <section class="rubric-section">
+    <div class="section-head">
+      <h3>{{ section.section_name }}</h3>
+      {% if section.weight %}
+      <span class="weight-chip">{{ section.weight }} נק׳</span>
+      {% endif %}
+    </div>
+    <ol class="question-list">
+      {% for question in section.questions %}
+      <li class="question-card">
+        <div class="question-head">
+          <span class="question-id" dir="ltr">{{ question.id }}</span>
+          <span class="badge badge-type">{{ type_labels.get(question.type, question.type) }}</span>
+        </div>
+        <p class="question-text">{{ question.question }}</p>
+        {% if question.code %}
+        <pre class="code-block" dir="ltr"><code>{{ question.code }}</code></pre>
+        {% endif %}
+        {% if question.requirements %}
+        <div class="criteria">
+          <h4>קריטריונים</h4>
+          <ul>
+            {% for requirement in question.requirements %}
+            <li>{{ requirement }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endfor %}
+  {% else %}
+  <ol class="question-list">
+    {% for task in rubric.tasks %}
+    <li class="question-card">
+      <div class="question-head">
+        <span class="question-id" dir="ltr">{{ task.id }}</span>
+        <strong>{{ task.name }}</strong>
+      </div>
+      <p class="question-text">{{ task.description }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if not preview %}
+<section class="card submission-card" id="submission"
+         {% if submission and submission.status in ('queued', 'grading') %}data-grading-pending data-status-url="/student/assignments/{{ assignment.id }}/grading-status"{% endif %}>
+  <div class="section-head">
+    <h2>ההגשה שלכם</h2>
+    {% if submission %}
+    <span class="badge {{ status_badges.get(submission.status, 'badge-type') }}">
+      {{ status_labels.get(submission.status, submission.status) }}
+    </span>
+    {% else %}
+    <span class="badge badge-draft">טרם הוגש</span>
+    {% endif %}
+  </div>
+
+  {% if submission and submission.status in ('queued', 'grading') %}
+  <p class="notice-inline">
+    ההגשה נשמרה ונבדקת ברקע. אפשר להמשיך ללמוד - העמוד יתעדכן לבד כשהציון יגיע.
+  </p>
+  {% elif submission and submission.status == 'deferred' %}
+  <p class="notice-inline">
+    ההגשה נשמרה. המודל עמוס כרגע, והבדיקה תרוץ אוטומטית מאוחר יותר.
+    אין צורך להגיש שוב.
+  </p>
+  {% elif submission and submission.status == 'failed' %}
+  <p class="flash flash-error">
+    הבדיקה לא הצליחה. אפשר לשלוח שוב, או לבקש מהמורה להריץ בדיקה מחדש.
+  </p>
+  {% endif %}
+
+  {% if grade_view %}
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ grade_view.score }}">
+      <span class="score-number">{{ grade_view.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      <p class="feedback-text">{{ grade_view.feedback }}</p>
+      {% set disq = grade_view.disqualification %}
+      {% include "_disqualification_notice.html" %}
+      {% if grade_view.late_penalty %}
+      <p class="muted">כולל ניכוי איחור: {{ grade_view.late_penalty }} נק׳</p>
+      {% endif %}
+      <a class="button button-secondary" href="/student/submissions/{{ submission.id }}">
+        פירוט מלא של הבדיקה
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <form method="post" action="/student/assignments/{{ assignment.id }}/submit"
+        class="stack submission-form" data-submit-form
+        data-draft-url="/student/assignments/{{ assignment.id }}/draft"
+        data-sandbox-url="/student/sandbox/run"
+        data-sandbox-sessions-url="/student/sandbox/sessions">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if draft_restored %}
+    <p class="notice-inline">
+      שחזרנו את הטיוטה ששמרת. אפשר להמשיך מהמקום שבו עצרת.
+    </p>
+    {% endif %}
+    <div>
+      <label for="submission-code">הקוד או הטקסט שלכם</label>
+      {{ ide_editor(
+           'submission-code',
+           'code',
+           code_value,
+           max_submission_chars,
+           True
+         ) }}
+      <p class="hint">
+        מדביקים את הקוד המלא. ההגשה נשמרת בדיוק כפי שנכתבה.
+        {% if submission and grade %}הגשה חדשה תחליף את הציון הקודם.{% endif %}
+      </p>
+    </div>
+
+    <p class="hint sandbox-hint">
+      "Run code" מריץ את הקוד בסביבה מבודדת עם מגבלת זמן. אין גישה לרשת,
+      לקבצים מחוץ לתיקיית ההרצה או לתהליכים אחרים. ההרצה אינה שומרת הגשה.
+    </p>
+
+    <div class="row-actions">
+      <button type="submit" class="button button-primary">
+        {{ 'שליחה מחדש לבדיקה' if submission else 'שליחת ההגשה' }}
+      </button>
+      <span class="muted" data-submit-status role="status"></span>
+      <span class="muted" data-draft-status role="status" aria-live="polite">
+        {% if draft_restored %}הטיוטה שלך שוחזרה{% endif %}
+      </span>
+    </div>
+
+    {% if submission %}
+    <p class="muted">
+      הוגש לראשונה: {{ submission.first_submitted_at|local_dt }}
+      · גרסה אחרונה: {{ submission.submitted_at|local_dt }}
+    </p>
+    {% endif %}
+  </form>
+</section>
+{% else %}
+<section class="card">
+  <div class="section-head">
+    <h2>ההגשה שלכם</h2>
+    <span class="badge badge-draft">תצוגת מורה</span>
+  </div>
+  <p class="notice-inline">
+    בתצוגת תלמיד אין טופס הגשה ואין ציונים. כדי לבדוק הגשות או לשנות את
+    המטלה, חזרו לניהול הכיתה.
+  </p>
+  <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">חזרה לניהול הכיתה</a>
+</section>
+{% endif %}
+{% endif %}
+{% if exam and not preview %}{% include "_exam_submitted_dialog.html" %}{% endif %}
+{% if not preview %}{% include "_chat_bubble.html" %}{% endif %}
+{% endblock %}

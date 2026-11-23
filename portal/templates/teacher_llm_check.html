@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% block title %}בדיקת הגשות · {{ assignment.title }} · {{ app_name }}{% endblock %}
+{% block head_extra %}
+{% if preview and preview.state == 'running' and not interrupted %}
+{# JavaScript polls the status route and updates this card in place. The full-page
+   refresh is kept only as a no-JS fallback so the screen still advances. #}
+<noscript><meta http-equiv="refresh" content="5"></noscript>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% set state_badges = {
+  'reviewed': 'badge-published',
+  'waiting': 'badge-warning',
+  'failed': 'badge-missing',
+  'off': 'badge-type'
+} %}
+{% set approved_ids = approved | map(attribute='submission_id') | list %}
+{% macro pick_form(action, submit_label, candidates, state_badges, csrf_token) %}
+<form method="post" action="{{ action }}" class="stack">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="llm-pick-bar">
+    <label class="llm-pick-all">
+      <input type="checkbox" data-check-all>
+      <span>סימון הכול</span>
+    </label>
+    <span class="muted small" data-pick-count>לא נבחרו הגשות</span>
+  </div>
+  <ul class="llm-pick-list">
+    {% for candidate in candidates %}
+    <li class="llm-pick-row">
+      <label>
+        <input type="checkbox" name="submission_ids" value="{{ candidate.submission_id }}">
+        <span class="llm-pick-name">{{ candidate.student_name }}</span>
+        {% if candidate.score is not none %}
+        <span class="muted small">ציון נוכחי {{ candidate.score }}</span>
+        {% endif %}
+        {% if candidate.state_label %}
+        <span class="badge {{ state_badges.get(candidate.llm_state, 'badge-type') }}">
+          {{ candidate.state_label }}
+        </span>
+        {% endif %}
+      </label>
+      <a class="button button-quiet button-small llm-pick-view"
+         href="/teacher/submissions/{{ candidate.submission_id }}"
+         target="_blank" rel="noopener"
+         title="פתיחת טופס ההגשה של התלמיד/ה בלשונית חדשה">צפייה בטופס ההגשה</a>
+    </li>
+    {% endfor %}
+  </ul>
+  <div class="row-actions">
+    <button type="submit" class="button button-primary">{{ submit_label }}</button>
+  </div>
+</form>
+{% endmacro %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>בדיקת הגשות</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>בדיקת הגשות</h1>
+    <p class="muted">{{ assignment.title }} · {{ group.name }}</p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-quiet" href="/teacher/exam-auto-check">בדיקה אוטומטית</a>
+    <a class="button button-quiet" href="/teacher/assignments/{{ assignment.id }}/calibration">סגנון הניקוד</a>
+    <a class="button button-quiet" href="/teacher/classes/{{ group.id }}">חזרה לכיתה</a>
+  </div>
+</section>
+
+{% if preview and interrupted %}
+<section class="card">
+  <h2>הבדיקה נקטעה</h2>
+  <p class="muted">
+    השרת הופעל מחדש בזמן הבדיקה, ולכן היא נעצרה באמצע
+    ({{ preview.done }} מתוך {{ preview.total or '?' }} הגשות).
+    שום ציון לא השתנה. לחצו כדי לחזור לבחירת הגשות ולהריץ את הבדיקה שוב.
+  </p>
+  <form method="post" action="/teacher/assignments/{{ assignment.id }}/llm-check/cancel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button button-primary">חזרה לבחירת הגשות</button>
+  </form>
+</section>
+
+{% elif preview and preview.state == 'running' %}
+<section class="card llm-running" aria-live="polite"
+         data-llm-status="/teacher/assignments/{{ assignment.id }}/llm-check/status">
+  <div class="llm-running-head">
+    <span class="llm-spinner" aria-hidden="true"></span>
+    <h2>בודק הגשות…</h2>
+  </div>
+  <p class="llm-running-line">
+    <span data-llm-submission>הגשה {{ ((preview.done + 1) if preview.total else 1) }} מתוך {{ preview.total or '?' }}</span>
+    <span class="llm-running-name" data-llm-name></span>
+  </p>
+  <p class="llm-running-question" data-llm-question>המודל עובר על השאלות הפתוחות…</p>
+  <div class="recheck-progress" role="progressbar" aria-label="התקדמות הבדיקה">
+    <div class="progress-value" data-llm-bar
+         style="width: {{ ((preview.done / preview.total * 100) if preview.total else 4)|round(0)|int }}%"></div>
+  </div>
+  <p class="llm-running-meta">
+    <span data-llm-count>{{ preview.done }} מתוך {{ preview.total or '?' }} הגשות נבדקו</span>
+    <span class="llm-running-elapsed" data-llm-elapsed></span>
+  </p>
+  <p class="hint">
+    המודל בודק את כל השאלות הפתוחות של ההגשה בפס אחד (קריאה אחת), כך שהבדיקה
+    מהירה יותר. אפשר לעזוב את הדף; הבדיקה ממשיכה ברקע.
+  </p>
+  <p class="hint">
+    שום ציון לא משתנה עד שלוחצים על „החלת הציונים שנבדקו”. הגשה שהמכסה שלה
+    נגמרה תמתין כאן לניסיון חוזר, בלי לאבד את הציון האוטומטי שלה.
+  </p>
+</section>
+
+{% elif preview and preview.state == 'failed' %}
+<section class="card">
+  <h2>הבדיקה נכשלה</h2>
+  <p class="muted">{{ preview.error or 'שגיאה לא ידועה.' }}</p>
+  <form method="post" action="/teacher/assignments/{{ assignment.id }}/llm-check/cancel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button button-primary">חזרה לבחירת הגשות</button>
+  </form>
+</section>
+
+{% elif preview and preview.state == 'ready' %}
+<section class="card">
+  <h2>תוצאות הבדיקה</h2>
+  <div class="recheck-summary">
+    <div><strong>{{ reviewed|length }}</strong><span>נבדקו במודל — להחלה</span></div>
+    {% if auto %}
+    <div><strong>{{ auto|length }}</strong><span>נבדקו אוטומטית — להחלה</span></div>
+    {% endif %}
+    <div><strong>{{ waiting|length }}</strong><span>ממתינות למכסה</span></div>
+    <div><strong>{{ changed|length }}</strong><span>ציונים ישתנו</span></div>
+    {% if manual_kept %}
+    <div><strong>{{ manual_kept }}</strong><span>ניקוד ידני נשמר</span></div>
+    {% endif %}
+  </div>
+  <p class="hint">
+    המספרים כאן סופרים רק את ההגשות שההחלה עדיין יכולה לכתוב. הגשה שכבר אישרתם
+    („סימון ההגשה כנבדקה”), שכבר עדכן אותה הציון החי, או שהתלמיד/ה הגישו מחדש —
+    לא נספרת ולא תיכתב. הגשות שממתינות למכסה נשארות כאן לניסיון חוזר, ושום ציון
+    שלהן לא משתנה עכשיו. ניקוד שקבעתם ידנית נשאר כפי שהוא.
+  </p>
+  {% if stale_ids %}
+  <p class="hint">
+    חלק מהשורות האלו כבר עדכנו בציון החי: הבדיקה האוטומטית בדקה אותן מחדש אחרי
+    שהוכנה הרשימה, התוצאה החדשה כבר שמורה, וההחלה לא תחזיר אותן אחורה.
+  </p>
+  {% endif %}
+  <div class="row-actions">
+    {% if applicable %}
+    <form method="post" action="/teacher/assignments/{{ assignment.id }}/llm-check/apply">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-primary">
+        החלת הציונים שנבדקו ({{ applicable|length }})
+      </button>
+    </form>
+    {% endif %}
+    {% if waiting %}
+    <form method="post" action="/teacher/assignments/{{ assignment.id }}/llm-check/retry">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-secondary">
+        ניסיון חוזר לממתינות ({{ waiting|length }})
+      </button>
+    </form>
+    {% endif %}
+    <form method="post" action="/teacher/assignments/{{ assignment.id }}/llm-check/cancel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-quiet">ביטול — להשאיר את הציונים</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>לפי תלמיד</h2>
+  <ul class="recheck-list">
+    {% for row in rows %}
+    <li class="recheck-row">
+      <div class="recheck-main">
+        <strong>{{ row.student_name }}</strong>
+        {% if row.version_label %}<span class="badge badge-type">{{ row.version_label }}</span>{% endif %}
+        <span class="badge {{ state_badges.get(row.llm_state, 'badge-type') }}">
+          {{ state_labels.get(row.llm_state, row.llm_state) }}
+        </span>
+        {% if row.submission_id in approved_ids %}
+        <span class="badge badge-approved">אושר על ידי המורה</span>
+        {% endif %}
+        {% if row.submission_id in stale_ids %}
+        <span class="badge badge-warning">כבר עדכן בציון החי — לא תוחל</span>
+        {% endif %}
+        {% if row.error %}
+        <span class="badge badge-warning">לא נבדק</span>
+        {% elif row.llm_state == 'reviewed' or row.llm_state == 'off' %}
+        <span class="recheck-score">
+          {{ row.old_score if row.old_score is not none else '—' }}
+          <span class="score-arrow" aria-hidden="true">→</span>
+          {{ row.new_score }}<span class="muted">/{{ row.maximum }}</span>
+        </span>
+        {% if row.old_score is not none and row.new_score > row.old_score %}
+        <span class="badge badge-published">+{{ row.new_score - row.old_score }}</span>
+        {% elif row.old_score is not none and row.new_score < row.old_score %}
+        <span class="badge badge-warning">{{ row.new_score - row.old_score }}</span>
+        {% endif %}
+        {% endif %}
+        <a class="button button-quiet button-small recheck-view"
+           href="/teacher/submissions/{{ row.submission_id }}"
+           target="_blank" rel="noopener"
+           title="פתיחת טופס ההגשה של התלמיד/ה בלשונית חדשה">צפייה בטופס ההגשה</a>
+      </div>
+      {% if row.error %}
+      <p class="muted small">{{ row.error }}</p>
+      {% elif row.llm_state == 'waiting' %}
+      <p class="muted small">
+        המכסה היומית נגמרה לפני שהמודל בדק את ההגשה. הציון האוטומטי נשמר;
+        לחצו „ניסיון חוזר” כשהמכסה מתאפסת, או הפעילו מפתח נוסף.
+      </p>
+      {% elif row.questions %}
+      <details class="recheck-details">
+        <summary>{{ row.changed }} שאלות שונות</summary>
+        <ul class="recheck-questions">
+          {% for question in row.questions %}
+          <li>
+            <div class="recheck-qhead">
+              <span>{{ question.title }}</span>
+              <span class="recheck-score">
+                {{ question.old_earned }} <span class="score-arrow" aria-hidden="true">→</span> {{ question.new_earned }}<span class="muted">/{{ question.points }}</span>
+              </span>
+              {% if question.manual_kept %}
+              <span class="badge badge-type">ניקוד ידני נשמר (אוטומטי: {{ question.auto_points }})</span>
+              {% endif %}
+            </div>
+            {% if question.notes %}<p class="muted small">{{ question.notes }}</p>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% elif row.llm_state == 'off' %}
+      <p class="muted small">נבדק אוטומטית לפי קובץ התשובות; אין שינוי בניקוד.</p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% if candidates %}
+<section class="card">
+  <h2>בדיקת הגשות נוספות</h2>
+  <p class="muted">
+    רוצים לבדוק עוד תלמידים? סמנו אותם כאן והבדיקה תרוץ רק עליהם. ההגשות שכבר
+    נבדקו למעלה נשמרות כפי שהן, ואפשר להחיל את הכול יחד בסיום.
+  </p>
+  {{ pick_form('/teacher/assignments/' ~ assignment.id ~ '/llm-check/extend', 'בדוק את ההגשות הנוספות', candidates, state_badges, csrf_token) }}
+</section>
+{% endif %}
+
+{% else %}
+<section class="card">
+  <h2>בחירת הגשות לבדיקה</h2>
+  <p class="muted">
+    סמנו את ההגשות שתרצו לבדוק. חלק א' (אמריקאיות) נבדק תמיד אוטומטית לפי קובץ
+    התשובות. את חלקים ב' (מעקב), ג' (הסבר וקוד) ו-ד' (תוכנית) בודק המודל לפי אותו
+    מחוון בדיוק — ככל שהמכסה היומית מספיקה. מה שהמודל לא יספיק ימתין לניסיון חוזר,
+    בלי לאבד את הציון האוטומטי.
+  </p>
+  {% if not llm_enabled %}
+  <p class="hint">
+    בדיקת המודל כבויה כרגע, אז הבדיקה תרוץ אוטומטית בלבד (חלק א' והכללים).
+    כדי לבדוק גם את החלקים הפתוחים עם המודל, הפעילו
+    <span dir="ltr">EXAM_LLM_REVIEW</span> עם מודל ומפתח תקין בשרת.
+  </p>
+  {% endif %}
+  {% if routing %}
+  <p class="hint">תעבורת מפתחות: <span dir="ltr">{{ routing }}</span></p>
+  {% endif %}
+  {% if candidates %}
+  {{ pick_form('/teacher/assignments/' ~ assignment.id ~ '/llm-check', 'בדוק את ההגשות שנבחרו', candidates, state_badges, csrf_token) }}
+  <p class="hint">
+    הבדיקה רצה ברקע ולא משנה ציון עד שתחליטו להחיל. אפשר לסמן הכול או רק כמה
+    תלמידים; הגשה שהמכסה נגמרה באמצע תמתין בלי לאבד את הציון שלה.
+  </p>
+  {% else %}
+  {% if approved %}
+  <p class="muted">כל ההגשות כבר אושרו על ידי המורה, אז אין מה לבחור לבדיקה חוזרת.</p>
+  {% else %}
+  <p class="muted">אין הגשות שנבדקו למבחן הזה עדיין.</p>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if approved %}
+<section class="card">
+  <h2>אושרו על ידי המורה</h2>
+  <p class="muted">
+    ההגשות האלה כבר עברו בדיקה של המורה וסומנו כנבדקות, ולכן אינן מופיעות ברשימת
+    הבחירה לבדיקה חוזרת של המודל. הסימון נשמר גם אחרי בדיקות אוטומטיות נוספות;
+    הן יחזרו לרשימה רק אם התלמיד/ה יגישו מחדש (גרסה חדשה).
+  </p>
+  <ul class="llm-approved-list">
+    {% for candidate in approved %}
+    <li class="llm-approved-row">
+      <div class="llm-approved-main">
+        <span class="llm-pick-name">{{ candidate.student_name }}</span>
+        <span class="badge badge-approved">אושר על ידי המורה</span>
+        {% if candidate.score is not none %}
+        <span class="muted small">ציון {{ candidate.score }}</span>
+        {% endif %}
+      </div>
+      <a class="button button-quiet button-small llm-pick-view"
+         href="/teacher/submissions/{{ candidate.submission_id }}"
+         target="_blank" rel="noopener"
+         title="פתיחת טופס ההגשה של התלמיד/ה בלשונית חדשה">צפייה בטופס ההגשה</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

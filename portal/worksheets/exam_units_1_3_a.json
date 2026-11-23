@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "rubric": "exam_units_1_3_a",
+  "title": "מבחן מקיף בפייתון - יחידות 1-3 - גרסה א'",
+  "note": "ענו על כל השאלות. בדף הזה אין כפתור הרצה — קראו את הקוד וחשבו מה הוא עושה. אפשר להגיש פעם אחת בלבד.",
+  "items": [
+    {
+      "key": "a1",
+      "number": 1,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "איזה משם המשתנים הבאים הוא תקין וחוקי בשפת Python?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["3students", "student_name", "student#name", "student?name"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a2",
+      "number": 2,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יהיה הטיפוס (data type) של המשתנה x?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "x = input(\"Enter standard value: \")",
+              "options": ["int", "float", "str", "bool"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a3",
+      "number": 3,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה תדפיס הוראת הפלט הבאה למסך?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "print(type(45.0))",
+              "options": ["<class 'int'>", "<class 'float'>", "<class 'str'>", "45.0"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a4",
+      "number": 4,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יהיה הפלט של קוד הפייתון הבא?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "num1 = \"10\"\nnum2 = \"20\"\nprint(num1 + num2)",
+              "options": ["30", "1020", "שגיאת הרצה", "\"30\""]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a5",
+      "number": 5,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יהיה הטיפוס (data type) של הערך במשתנה?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "x = \"12.5\"",
+              "options": ["int", "float", "str", "bool"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "b1",
+      "number": 6,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 12,
+      "title": "מה יודפס למסך?",
+      "intro": "עקבו אחר הקוד וכתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "game = \"Minecraft\"\nlevel = 5\nprint(\"I play\", game, \"at level\", level)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "b2",
+      "number": 7,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 12,
+      "title": "מה יודפס למסך?",
+      "intro": "עקבו אחר הקוד וכתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "a = 15\nb = 4\na = a + b\nb = a - b\nprint(\"a =\", a)\nprint(\"b =\", b)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "b3",
+      "number": 8,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 11,
+      "title": "מה יודפס למסך?",
+      "intro": "הניחו שהמשתמש הזין את הערך 50. כתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "val1 = input(\"Enter a number: \")\nval2 = int(val1) + 10\nprint(type(val1))\nprint(val2)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "c1",
+      "number": 9,
+      "section": "חלק ג': תיקון שגיאות",
+      "points": 10,
+      "title": "מצאו את השגיאה וכתבו את הקוד המתוקן",
+      "intro": "בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן כך שיפעל.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "age = input(\"Enter your age: \")\nnext_year = age + 1\nprint(\"Next year you will be\", next_year)",
+          "given": true
+        },
+        {
+          "key": "explain",
+          "kind": "short",
+          "label": "מה השגיאה?",
+          "placeholder": "הסבירו במילים שלכם"
+        },
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "הקוד המתוקן",
+          "placeholder": "כתבו כאן את התוכנית המתוקנת"
+        }
+      ]
+    },
+    {
+      "key": "c2",
+      "number": 10,
+      "section": "חלק ג': תיקון שגיאות",
+      "points": 10,
+      "title": "מצאו את השגיאה וכתבו את הקוד המתוקן",
+      "intro": "המטרה היא להדפיס: Hello Dan, welcome back!. הסבירו מהי השגיאה וכתבו את הקוד המתוקן.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "user_name = \"Dan\"\nprint(\"Hello user_name, welcome back!\")",
+          "given": true
+        },
+        {
+          "key": "explain",
+          "kind": "short",
+          "label": "מה השגיאה?",
+          "placeholder": "הסבירו במילים שלכם"
+        },
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "הקוד המתוקן",
+          "placeholder": "כתבו כאן את התוכנית המתוקנת"
+        }
+      ]
+    },
+    {
+      "key": "d1",
+      "number": 11,
+      "section": "חלק ד': כתיבת קוד מלא",
+      "points": 20,
+      "title": "כתבו תוכנית מלאה",
+      "intro": "כתבו תוכנית שקולטת שם של אדם (מחרוזת), גיל בשנים (מספר שלם) ומחיר כרטיס לקולנוע בשקלים (מספר עשרוני), ומדפיסה הודעה אחת שמשלבת את כל שלושת הנתונים עם כיתוב מתאים.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "התוכנית שלכם"
+        }
+      ]
+    }
+  ]
+}

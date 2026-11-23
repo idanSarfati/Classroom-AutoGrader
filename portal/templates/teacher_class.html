@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ group.name }}</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ group.name }}</h1>
+    <p class="muted">
+      קוד הצטרפות לתלמידים: <strong class="code-chip">{{ group.code }}</strong>
+      {% if classroom_link %}
+      · מקושר לקורס: {{ classroom_link.course_name }}
+      {% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    <a class="button button-secondary" href="/teacher/preview/classes/{{ group.id }}">צפייה כתלמיד</a>
+    <a class="button button-primary" href="/teacher/classes/{{ group.id }}/gradebook">ספר ציונים</a>
+    <a class="button button-secondary" href="/teacher/import?class_id={{ group.id }}">ייבוא מ-Google Classroom</a>
+    <form method="post" action="/teacher/classes/{{ group.id }}/delete"
+          data-confirm="למחוק את הכיתה על כל התלמידים והמטלות שלה? החשבונות יישארו.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-danger">מחיקת כיתה</button>
+    </form>
+  </div>
+</section>
+
+<nav class="class-tabs" aria-label="ניווט בכיתה">
+  <a class="class-tab{% if class_tab != 'students' %} is-active{% endif %}"
+     href="/teacher/classes/{{ group.id }}"
+     {% if class_tab != 'students' %}aria-current="page"{% endif %}>
+    תוכן <span class="count">{{ lessons|length + assignments|length }}</span>
+  </a>
+  <a class="class-tab{% if class_tab == 'students' %} is-active{% endif %}"
+     href="/teacher/classes/{{ group.id }}?tab=students"
+     {% if class_tab == 'students' %}aria-current="page"{% endif %}>
+    תלמידים <span class="count">{{ students|length }}</span>
+  </a>
+</nav>
+
+{% if class_tab == 'students' %}
+<section class="card">
+  <div class="section-head">
+    <h2>תלמידים <span class="count">{{ students|length }}</span></h2>
+  </div>
+
+  {% if students %}
+  <ul class="person-list">
+    {% for student in students %}
+    <li>
+      <div>
+        <a href="/teacher/students/{{ student.id }}/profile"><strong>{{ student.display_name }}</strong></a>
+        <span class="muted ltr-inline" dir="ltr">{{ student.username }}</span>
+      </div>
+      <div class="row-actions">
+        <form method="post"
+              action="/teacher/students/{{ student.id }}/reset-password"
+              data-confirm="לאפס את הסיסמה של {{ student.display_name }}? הסיסמה החדשה תוצג פעם אחת בלבד.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-button">איפוס סיסמה</button>
+        </form>
+        <form method="post"
+              action="/teacher/classes/{{ group.id }}/students/{{ student.id }}/remove"
+              data-confirm="להסיר את {{ student.display_name }} מהכיתה? החשבון יישאר במערכת.">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link-button danger-text">הסרה</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">אין עדיין תלמידים בכיתה.</p>
+  {% endif %}
+
+  <details class="disclosure">
+    <summary class="button button-secondary">הוספת תלמיד/ה</summary>
+    <form method="post" action="/teacher/classes/{{ group.id }}/students" class="stack form-panel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="field-grid">
+        <div>
+          <label for="student-name">שם תצוגה</label>
+          <input id="student-name" name="display_name" type="text" maxlength="120" required
+                 placeholder="לדוגמה: נועה כהן">
+        </div>
+        <div>
+          <label for="student-username">שם משתמש</label>
+          <input id="student-username" name="username" type="text" maxlength="32" required
+                 dir="ltr" autocapitalize="none" spellcheck="false"
+                 placeholder="noa.cohen">
+        </div>
+        <div>
+          <label for="student-password">סיסמה ראשונית</label>
+          <input id="student-password" name="password" type="text" minlength="8" maxlength="128"
+                 required dir="ltr" autocomplete="new-password">
+        </div>
+      </div>
+      <p class="hint">מסרו את שם המשתמש והסיסמה לתלמיד/ה. ניתן לאפס סיסמה בהמשך.</p>
+      <button type="submit" class="button button-primary">יצירת חשבון ושיוך לכיתה</button>
+    </form>
+  </details>
+</section>
+{% else %}
+
+<section class="card">
+  <div class="section-head">
+    <h2>תוכן הכיתה <span class="count">{{ lessons|length + assignments|length }}</span></h2>
+    <div class="row-actions">
+      <a class="button button-quiet" href="/teacher/classes/{{ group.id }}/new">שיעור חדש</a>
+      <a class="button button-quiet" href="/teacher/classes/{{ group.id }}/export">
+        הורדת CSV
+      </a>
+      <a class="button button-quiet" href="/teacher/classes/{{ group.id }}/grading">
+        בדיקות{% if waiting_total %} · {{ waiting_total }} ממתינות{% endif %}
+      </a>
+    </div>
+  </div>
+  <p class="muted">
+    שיעורים ומטלות יחד, מסודרים לפי נושאים — היחידה הגבוהה והפריט החדש למעלה.
+  </p>
+</section>
+
+{% if topics %}
+  {% for topic in topics %}
+  <section class="card topic-card">
+    <div class="section-head">
+      <h2>{{ topic.label }}</h2>
+      <span class="count">{{ topic.items|length }}</span>
+    </div>
+    <ul class="lesson-list">
+        {% for item in topic.items %}
+        {% if item.kind == 'lesson' %}
+        <li class="lesson-row">
+          <div class="lesson-main">
+            <div class="badge-row">
+              <span class="badge badge-lesson">שיעור</span>
+              {% if item.published %}
+              <span class="badge badge-published">מפורסם</span>
+              {% else %}
+              <span class="badge badge-draft">טיוטה</span>
+              {% endif %}
+            </div>
+            <a class="lesson-link" href="/teacher/lessons/{{ item.object_id }}">{{ item.title }}</a>
+            <div class="meta muted">{{ item.slide_count }} שקופיות</div>
+            {% if item.summary %}
+            <p class="clamp">{{ item.summary }}</p>
+            {% endif %}
+          </div>
+          <a class="button button-secondary" href="/teacher/lessons/{{ item.object_id }}">עריכה</a>
+        </li>
+        {% else %}
+        {% set assignment = assignments_by_id.get(item.object_id) %}
+        {% if assignment %}
+        {% set counts = grading_counts.get(assignment.id, {}) %}
+        {% set exam = exam_overviews.get(assignment.id) %}
+        <li class="lesson-row">
+          <div class="lesson-main">
+            <div class="badge-row">
+              {% if exam %}
+              <span class="badge badge-exam">מבחן</span>
+              {% if exam.state == 'open' %}
+              <span class="badge badge-published">פתוח להגשה</span>
+              {% elif exam.state == 'closed' %}
+              <span class="badge badge-missing">נסגר</span>
+              {% else %}
+              <span class="badge badge-draft">טרם נפתח</span>
+              {% endif %}
+              {% else %}
+              <span class="badge {{ item.kind_badge }}">{{ item.kind_label }}</span>
+              {% endif %}
+              {% if assignment.published %}
+              <span class="badge badge-published">מפורסמת</span>
+              {% else %}
+              <span class="badge badge-draft">טיוטה</span>
+              {% endif %}
+              {% if exam and not assignment.published and exam.release != 'held' %}
+              {# The mark is out even though the paper is not - the state a
+                 teacher picks between two sittings. #}
+              <span class="badge badge-published">ציונים פורסמו למי שנבחן</span>
+              {% endif %}
+              {% if counts.get('needs_review') %}
+              <span class="badge badge-warning">לסקירה {{ counts.get('needs_review') }}</span>
+              {% endif %}
+            </div>
+            <a class="lesson-link" href="/teacher/preview/assignments/{{ assignment.id }}"
+               title="צפייה במטלה כפי שהתלמידים יראו אותה">{{ assignment.title }}</a>
+            {% if exam %}
+            <div class="meta muted">
+              חלון: {{ assignment.opens_at|local_dt }} – {{ assignment.closes_at|local_dt }}
+              · נפתחו {{ exam.opened }} מתוך {{ students|length }}
+              · תוצאות: {{ exam.release_label }}
+              {% for version in exam.versions %}
+              · {{ version.label }} {{ version.count }}
+              {% endfor %}
+              {% if counts %}
+              · הוגשו {{ counts.get('submitted', 0) }}
+              · נבדקו {{ counts.get('graded', 0) }}
+              {% if counts.get('failed') %}· כשלו {{ counts.get('failed') }}{% endif %}
+              {% endif %}
+            </div>
+            <p class="hint">
+              לכל תלמיד/ה גרסה קבועה משלו וסדר שאלות שונה. ההגשה אחת בלבד.
+              הבדיקה הבסיסית מיידית לפי קובץ התשובות; את החלקים הפתוחים אפשר
+              לבדוק גם עם המודל דרך „בדיקת הגשות” (כפוף למכסה היומית).
+            </p>
+            {% else %}
+            <div class="meta muted">
+              {% if assignment.due_at %}יעד: {{ assignment.due_at|local_dt }}{% else %}ללא תאריך יעד{% endif %}
+              {% if assignment.rubric_path %}
+              · מחוון: <span dir="ltr">{{ assignment.rubric_path|basename }}</span>
+              · <span dir="ltr">{{ assignment.rubric_sha256[:12] }}</span>
+              {% else %}
+              · אירוע ציון — הציונים הוזנו על ידי המורה
+              {% endif %}
+              {% if counts %}
+              · הוגשו {{ counts.get('submitted', 0) }}
+              · נבדקו {{ counts.get('graded', 0) }}
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="row-actions">
+            <a class="button button-quiet" href="/teacher/assignments/{{ assignment.id }}/grading">
+              הגשות
+            </a>
+            {% if exam %}
+            {# One screen for re-marking: pick hand-ins, run the deterministic
+               check plus the model on the open parts, preview old→new per
+               student, and apply only what the teacher agrees to. #}
+            <a class="button button-quiet" href="/teacher/assignments/{{ assignment.id }}/llm-check">
+              בדיקת הגשות
+            </a>
+            {# An exam is governed by its window, not by a deadline, so this is
+               the one place that sets when the paper opens and when it stops
+               accepting hand-ins. Editing here must not unpublish the exam. #}
+            <details class="disclosure publish-disclosure">
+              <summary class="button button-quiet">חלון הגשה</summary>
+              <form method="post" action="/teacher/assignments/{{ assignment.id }}/exam-window"
+                    class="stack form-panel publish-panel">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div>
+                  <label for="exam-open-{{ assignment.id }}">
+                    נפתח (שעון {{ timezone }})
+                  </label>
+                  <input id="exam-open-{{ assignment.id }}" name="opens_at"
+                         type="datetime-local" required
+                         value="{{ assignment.opens_at|local_input if assignment.opens_at else '' }}">
+                </div>
+                <div>
+                  <label for="exam-close-{{ assignment.id }}">
+                    נסגר (שעון {{ timezone }})
+                  </label>
+                  <input id="exam-close-{{ assignment.id }}" name="closes_at"
+                         type="datetime-local" required
+                         value="{{ assignment.closes_at|local_input if assignment.closes_at else '' }}">
+                </div>
+                <p class="hint">
+                  לפני המועד הראשון המבחן לא נפתח, ואחרי המועד השני שום
+                  תשובה לא מתקבלת. סמוך לסגירה המבחן נשלח אוטומטית עם
+                  התשובות שנכתבו. שינוי שעה משפיע גם על תלמידים שעובדים
+                  כרגע, ולכן עדיף לעדכן לפני השיעור.
+                </p>
+                <button type="submit" class="button button-primary">שמירת החלון</button>
+              </form>
+
+              {# A make-up sitting: tick one or more students and give them all
+                 the same two hours in one save. The class window above
+                 remains the rule for everyone else. #}
+              <div class="stack personal-window">
+                <h3>מועד אישי להשלמה</h3>
+                <p class="hint">
+                  תלמידים שפספסו את המבחן יכולים לקבל מועד אחר משל הכיתה.
+                  סמנו תלמיד/ה אחד/ת או כמה ביחד — כולם יקבלו את אותו חלון
+                  בשמירה אחת. המועד האישי מחליף את שעת הפתיחה והסגירה רק
+                  עבורם — כולל השעון וההגשה האוטומטית בעמוד שלהם.
+                </p>
+                {% set granted_ids = exam.overrides | map(attribute='student_id') | list %}
+                <form method="post"
+                      action="/teacher/assignments/{{ assignment.id }}/exam-window/student"
+                      class="stack form-panel">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <div class="llm-pick-bar">
+                    <label class="llm-pick-all">
+                      <input type="checkbox" data-check-all="student_ids">
+                      <span>סימון הכול</span>
+                    </label>
+                    <span class="muted small" data-pick-count
+                          data-pick-empty="לא נבחרו תלמידים">לא נבחרו תלמידים</span>
+                  </div>
+                  <ul class="llm-pick-list personal-pick-list">
+                    {% for student in students %}
+                    <li class="llm-pick-row">
+                      <label>
+                        <input type="checkbox" name="student_ids" value="{{ student.id }}">
+                        <span class="llm-pick-name">{{ student.display_name }}</span>
+                        {% if student.id in granted_ids %}
+                        <span class="muted small">כבר נקבע מועד</span>
+                        {% endif %}
+                      </label>
+                    </li>
+                    {% endfor %}
+                  </ul>
+                  <div>
+                    <label for="exam-student-open-{{ assignment.id }}">
+                      נפתח (שעון {{ timezone }})
+                    </label>
+                    <input id="exam-student-open-{{ assignment.id }}" name="opens_at"
+                           type="datetime-local" required>
+                  </div>
+                  <div>
+                    <label for="exam-student-close-{{ assignment.id }}">
+                      נסגר (שעון {{ timezone }})
+                    </label>
+                    <input id="exam-student-close-{{ assignment.id }}" name="closes_at"
+                           type="datetime-local" required>
+                  </div>
+                  <button type="submit" class="button button-secondary">
+                    שמירת מועד אישי
+                  </button>
+                </form>
+                {% if exam.overrides %}
+                <ul class="exam-grants">
+                  {% for grant in exam.overrides %}
+                  <li>
+                    <span>
+                      <strong>{{ grant.name }}</strong>
+                      · {{ grant.opens_at|local_dt }} – {{ grant.closes_at|local_dt }}
+                    </span>
+                    <form method="post"
+                          action="/teacher/assignments/{{ assignment.id }}/exam-window/student/{{ grant.student_id }}/clear">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button type="submit" class="button button-quiet">ביטול</button>
+                    </form>
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% endif %}
+              </div>
+            </details>
+            {# Marking is immediate, but the result stays hidden until this
+               decision: a class sitting later must not read the paper from a
+               class that already finished. #}
+            <details class="disclosure publish-disclosure">
+              <summary class="button button-quiet">פרסום תוצאות</summary>
+              <div class="stack form-panel publish-panel">
+                <p class="hint">
+                  הבדיקה מוכנה מיד עם ההגשה, אבל התלמידים רואים רק את אישור
+                  ההגשה עד שתפרסמו. אם עוד כיתה עומדת להיבחן, פרסמו קודם
+                  ציונים בלבד - פרסום מלא מציג גם את דף המבחן והתשובות.
+                </p>
+                {% if not assignment.published %}
+                <p class="hint">
+                  המבחן מוסתר מהתלמידים (טיוטה). הפרסום כאן פותח את התוצאות
+                  רק למי שכבר ניגש: תלמיד שטרם נבחן לא רואה את המבחן בכלל -
+                  לא ברשימה ולא בדף - ולא יכול להגיש. כך אפשר להוציא ציונים
+                  למי שנבחן בלי לחשוף את השאלות למי שטרם נבחן. הציונים
+                  נשארים גם בספר הציונים ובקובץ הייצוא.
+                </p>
+                {% endif %}
+                <p>
+                  מצב נוכחי:
+                  <strong>{{ exam.release_label }}</strong>
+                </p>
+                <form method="post"
+                      action="/teacher/assignments/{{ assignment.id }}/exam-release">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="release" value="scores">
+                  <button type="submit" class="button button-secondary">
+                    פרסום ציונים בלבד
+                  </button>
+                </form>
+                <form method="post"
+                      action="/teacher/assignments/{{ assignment.id }}/exam-release">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="release" value="full">
+                  <button type="submit" class="button button-primary">
+                    פרסום מלא - ציון, פירוט ודף המבחן
+                  </button>
+                </form>
+                <form method="post"
+                      action="/teacher/assignments/{{ assignment.id }}/exam-release">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="release" value="held">
+                  <button type="submit" class="button button-quiet">
+                    הסתרת התוצאות מחדש
+                  </button>
+                </form>
+              </div>
+            </details>
+            {% endif %}
+            {% if assignment.published %}
+            <form method="post" action="/teacher/assignments/{{ assignment.id }}/toggle">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="button button-quiet">ביטול פרסום</button>
+            </form>
+            {% else %}
+            {# Publishing asks for the deadline in the same step: a draft that
+               becomes visible without one would let students hand in work with
+               no date to measure lateness against. #}
+            <details class="disclosure publish-disclosure">
+              <summary class="button button-quiet">פרסום</summary>
+              <form method="post" action="/teacher/assignments/{{ assignment.id }}/toggle"
+                    class="stack form-panel publish-panel">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div>
+                  <label for="publish-due-{{ assignment.id }}">
+                    תאריך יעד (אופציונלי, שעון {{ timezone }})
+                  </label>
+                  <input id="publish-due-{{ assignment.id }}" name="due_at"
+                         type="date"
+                         value="{{ assignment.due_at|local_date_input if assignment.due_at else '' }}">
+                  <p class="hint">
+                    תאריך היעד הוא סוף היום (23:59). ההגשה נשארת פתוחה גם
+                    אחריו, ואיחור גורר ניכוי של {{ late_penalty_points }} נקודות.
+                  </p>
+                </div>
+                <button type="submit" class="button button-primary">פרסום המטלה</button>
+              </form>
+            </details>
+            {% endif %}
+            {% if assignment.published and not exam %}
+            {# A live assignment keeps its deadline editable: extending or
+               clearing it must not mean unpublishing the task mid-lesson. #}
+            <details class="disclosure publish-disclosure">
+              <summary class="button button-quiet">תאריך יעד</summary>
+              <form method="post" action="/teacher/assignments/{{ assignment.id }}/due"
+                    class="stack form-panel publish-panel">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div>
+                  <label for="due-{{ assignment.id }}">תאריך יעד (שעון {{ timezone }})</label>
+                  <input id="due-{{ assignment.id }}" name="due_at" type="date"
+                         value="{{ assignment.due_at|local_date_input if assignment.due_at else '' }}">
+                  <p class="hint">
+                    השאירו ריק כדי לבטל את תאריך היעד. תאריך יעד הוא סוף היום
+                    (23:59). ההגשה נשארת פתוחה גם אחריו, ואיחור גורר ניכוי של
+                    {{ late_penalty_points }} נקודות.
+                  </p>
+                </div>
+                <button type="submit" class="button button-primary">שמירת תאריך היעד</button>
+              </form>
+            </details>
+            {% endif %}
+            <form method="post" action="/teacher/assignments/{{ assignment.id }}/delete"
+                  data-confirm="למחוק את המטלה '{{ assignment.title }}'?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit" class="link-button danger-text">מחיקה</button>
+            </form>
+          </div>
+        </li>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+{% else %}
+<section class="card">
+  <p class="muted">אין עדיין שיעורים או מטלות בכיתה.</p>
+</section>
+{% endif %}
+
+{% endif %}
+{% endblock %}

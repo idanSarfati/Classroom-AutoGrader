@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "name": "units_1_3",
+  "title": "מבחן מקיף בפייתון - יחידות 1-3",
+  "instructions": "המבחן בודק את יחידות 1-3: משתנים, טיפוסי נתונים, קלט ופלט, מעקב ריצה, תיקון שגיאות וכתיבת תוכנית מלאה. בכל גרסה 11 שאלות ב-100 נקודות. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "total_points": 100,
+  "shuffle_questions": true,
+  "shuffle_options": true,
+  "check_file": "checks/units_1_3.json",
+  "versions": [
+    {
+      "key": "a",
+      "label": "גרסה א'",
+      "worksheet": "exam_units_1_3_a",
+      "rubric": "assignments/exam_units_1_3_a.json"
+    },
+    {
+      "key": "b",
+      "label": "גרסה ב'",
+      "worksheet": "exam_units_1_3_b",
+      "rubric": "assignments/exam_units_1_3_b.json"
+    },
+    {
+      "key": "c",
+      "label": "גרסה ג'",
+      "worksheet": "exam_units_1_3_c",
+      "rubric": "assignments/exam_units_1_3_c.json"
+    }
+  ]
+}

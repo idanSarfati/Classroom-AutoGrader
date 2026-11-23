@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set base = preview_base if preview else '/student' %}
+{% if preview %}{% include "_preview_banner.html" %}{% endif %}
+<nav class="breadcrumb" aria-label="מיקום">
+  {% if preview %}
+  {% if group %}
+  <a href="/teacher/classes/{{ group.id }}">ניהול הכיתה</a>
+  {% else %}
+  <a href="/teacher">הכיתות שלי</a>
+  {% endif %}
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/lessons">שיעורים</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ lesson.title }}</span>
+  {% else %}
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/lessons">שיעורים</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ lesson.title }}</span>
+  {% endif %}
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ lesson.title }}</h1>
+    <p class="muted">
+      {% if group %}{{ group.name }}{% else %}שיעור כללי{% endif %}
+      · {{ total }} שקופיות
+    </p>
+  </div>
+</section>
+
+{% if lesson.summary %}
+<section class="card">
+  <div class="prose">{{ lesson.summary }}</div>
+</section>
+{% endif %}
+
+{% if current %}
+{# Swapped in place by app.js so "הבאה" does not reload the page and jump to
+   the top. Without JavaScript the links navigate normally. #}
+<div class="slide-frame" data-slide-frame>
+<article class="card slide-viewer" id="slide-viewer" aria-label="שקופית {{ index + 1 }} מתוך {{ total }}">
+  <div class="slide-progress">
+    <span class="muted">שקופית {{ index + 1 }} מתוך {{ total }}</span>
+    <div class="progress-track" role="presentation">
+      <span class="progress-value" style="width: {{ ((index + 1) * 100 // total) }}%"></span>
+    </div>
+  </div>
+
+  {% if current.title and not current_content.image_blob_sha %}
+  <h2 class="slide-title">{{ current.title }}</h2>
+  {% endif %}
+  {% if current_content and current_content.image_blob_sha %}
+  <img class="slide-image"
+       src="{{ base }}/lessons/{{ lesson.id }}/slides/{{ index }}/image"
+       alt="{{ current_content.alt_text or 'שקופית ' ~ (index + 1) }}"
+       {% if current_content.width %}width="{{ current_content.width }}" height="{{ current_content.height }}"{% endif %}
+       loading="lazy">
+  {% elif current_content and current_content.body_html %}
+  <div class="slide-body prose rich-text">{{ current_content.body_html|safe }}</div>
+  {% elif current.body %}
+  <div class="slide-body prose">{{ current.body }}</div>
+  {% endif %}
+  {% if current.code %}
+  <pre class="code-block" dir="ltr"><code>{{ current.code }}</code></pre>
+  {% endif %}
+</article>
+
+<nav class="slide-nav" aria-label="ניווט בין שקופיות">
+  {% if index > 0 %}
+  <a class="button" href="?slide={{ index - 1 }}#slide-viewer" data-slide-link>הקודמת</a>
+  {% else %}
+  <span class="slide-nav-spacer"></span>
+  {% endif %}
+
+  <a class="button button-quiet" href="{{ base }}/lessons/{{ lesson.id }}#slide-viewer" data-slide-link>התחלה</a>
+
+  {% if index < total - 1 %}
+  <a class="button button-primary" href="?slide={{ index + 1 }}#slide-viewer" data-slide-link>הבאה</a>
+  {% else %}
+  <span class="done-chip">סוף השיעור</span>
+  {% endif %}
+</nav>
+
+{% if total > 1 %}
+<details class="disclosure card slide-index-card" data-slide-index>
+  <summary class="button button-quiet">כל השקופיות</summary>
+  <ol class="slide-index">
+    {% for item in slides %}
+    <li>
+      <a class="slide-index-link{% if loop.index0 == index %} current{% endif %}"
+         href="?slide={{ loop.index0 }}#slide-viewer" data-slide-link
+         {% if loop.index0 == index %}aria-current="page"{% endif %}>
+        {{ loop.index }}. {{ item.title or 'שקופית' }}
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+</details>
+{% endif %}
+</div>
+{% else %}
+<section class="card empty-state">
+  <h2>השיעור עדיין ריק</h2>
+  <p>אין עדיין שקופיות בשיעור הזה. נסו שוב מאוחר יותר.</p>
+  <a class="button button-quiet" href="{% if preview %}{% if group %}{{ base }}/classes/{{ group.id }}{% else %}/teacher/lessons{% endif %}{% else %}/student/lessons{% endif %}">{% if preview %}חזרה{% else %}כל השיעורים{% endif %}</a>
+</section>
+{% endif %}
+{% endblock %}

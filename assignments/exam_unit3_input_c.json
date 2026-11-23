@@ -1,0 +1,114 @@
+{
+  "assignment_title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים - גרסה ג'",
+  "topic": "הבוחן בודק את יחידה 3: פקודת הקלט input, המרת טיפוסים (int, float), מעקב ריצה, תיקון שגיאות וכתיבת תוכנית מלאה. בכל גרסה 11 שאלות ב-100 נקודות. בדף הזה אין כפתור הרצה - קראו את הקוד וכתבו את התשובה. אפשר להגיש פעם אחת בלבד.",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א': שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "a1",
+          "type": "multiple_choice",
+          "question": "איזה טיפוס נתונים מחזירה פקודת הקלט input() כברירת מחדל בפייתון? (מספר שלם (int) / מספר ממשי (float) / מחרוזת טקסט (str) / ערך בוליאני (bool))"
+        },
+        {
+          "id": "a2",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט של קטע הקוד הבא אם המשתמש יקיש את המספרים 3 ואחריו 9? (12 / 39 / 3 9 / תתרחש שגיאת תחביר)"
+        },
+        {
+          "id": "a3",
+          "type": "multiple_choice",
+          "question": "כיצד יש לכתוב בצורה נכונה קוד שקולט מהמשתמש את משקלו (מספר עשרוני) ושומר במשתנה weight? (weight = input(float(\"Enter weight: \")) / weight = float(input(\"Enter weight: \")) / weight = input(\"Enter weight:\").float() / float weight = input(\"Enter weight:\"))"
+        },
+        {
+          "id": "a4",
+          "type": "multiple_choice",
+          "question": "מה יקרה בהרצת השורה הבאה אם המשתמש יקליד את המחרוזת \"abc\" במקום מספר? (המשתנה יקבל את הערך 0 / תתרחש שגיאת המרה מסוג ValueError / המשתנה ישמור את הטקסט \"abc\" ללא בעיה / הקוד ידלג על השורה ויעבור הלאה)"
+        },
+        {
+          "id": "a5",
+          "type": "multiple_choice",
+          "question": "מהי הפונקציונליות של הפרמטר end בפקודת print? (לקבוע האם התוכנית תסיים את ריצתה בסוף ההדפסה / להגדיר מה יופיע בסוף ההדפסה במקום מעבר השורה האוטומטי / לאלץ את הפלט להיות מודפס כמחרוזת / למחוק את כל מה שהודפס לפני כן)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב': מעקב ריצה",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "b1",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הנחה: המשתמש הקליד 100 בקלט הראשון, ומינוס 25.5 (25.5-) בקלט השני. כתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "val1 = int(input())\nval2 = float(input())\ntotal = val1 - val2\nprint(\"Result:\", total)\nprint(type(total))",
+          "expected_output": "Result: 125.5\n<class 'float'>"
+        },
+        {
+          "id": "b2",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? הנחה: המשתמש הקליד את התו # בקלט. כתבו את הפלט המדויק.",
+          "code": "symbol = input(\"Enter symbol: \")\npattern = symbol * 4\nprint(pattern)",
+          "expected_output": "####"
+        },
+        {
+          "id": "b3",
+          "type": "expected_output",
+          "question": "מה יודפס למסך? כתבו את הפלט המדויק, שורה אחר שורה.",
+          "code": "print(\"Python\", end=\"***\")\nprint(\"Rocks\", end=\"!\")",
+          "expected_output": "Python***Rocks!"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג': תיקון שגיאות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "c1",
+          "type": "debugging",
+          "question": "מצאו את השגיאה וכתבו את הקוד המתוקן התוכנית אמורה לקלוט את אורך הצלע של ריבוע ולחשב את השטח שלו (צלע כפול צלע). בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן כך שיפעל.",
+          "code": "side = input(\"Enter square side: \")\narea = side * side\nprint(\"Area is:\", area)",
+          "requirements": [
+            "התוכנית רצה",
+            "הפלט: Area is: 16.0",
+            "המקור ממיר ל-int או float"
+          ],
+          "corrected_code": "side = float(input(\"Enter square side: \"))\narea = side * side\nprint(\"Area is:\", area)"
+        },
+        {
+          "id": "c2",
+          "type": "debugging",
+          "question": "מצאו את השגיאה וכתבו את הקוד המתוקן התוכנית אמורה לקלוט את שנת הלידה של תלמיד ולהדפיס הודעה הכוללת את שנת הלידה שלו. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן.",
+          "code": "birth_year = int(input(\"Enter birth year: \"))\nprint(\"You were born in \" + birth_year)",
+          "requirements": [
+            "התוכנית רצה",
+            "הפלט: You were born in 2008",
+            "ההדפסה מחברת את המשתנה כראוי"
+          ],
+          "corrected_code": "birth_year = int(input(\"Enter birth year: \"))\nprint(\"You were born in\", birth_year)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד': כתיבת קוד מלא",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "d1",
+          "type": "code_writing",
+          "question": "כתבו תוכנית מלאה כתבו תוכנית שקולטת מהמשתמש את שם הספר האהוב עליו (מחרוזת), את מספר העמודים בספר (מספר שלם int), ואת מחיר הספר בשקלים (מספר עשרוני float), ומדפיסה הודעה אחת מסודרת המשלבת את שם הספר, מספר העמודים והמחיר עם כיתוב מילולי מתאים.",
+          "corrected_code": "book = input(\"Enter book name: \")\npages = int(input(\"Enter number of pages: \"))\nprice = float(input(\"Enter price: \"))\nprint(\"Book:\", book, \"Pages:\", pages, \"Price:\", price)",
+          "requirements": [
+            "התוכנית רצה בשני הקלטים",
+            "הפלט בקלט הראשון",
+            "הפלט בקלט השני",
+            "המקור ממיר את מספר העמודים ב-int",
+            "המקור ממיר את המחיר ב-float"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ student.display_name }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ student.display_name }}</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ student.display_name }}</h1>
+    <p class="muted">
+      <span dir="ltr">{{ student.username }}</span>
+      · {{ profile.classes|length }} כיתות
+      {% if profile.average is not none %}· ממוצע כולל {{ profile.average }}{% endif %}
+    </p>
+  </div>
+  <div class="row-actions">
+    <form method="post" action="/teacher/students/{{ student.id }}/reset-password"
+          data-confirm="לאפס את הסיסמה של {{ student.display_name }}? הסיסמה החדשה תוצג פעם אחת בלבד.">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="button button-quiet">איפוס סיסמה</button>
+    </form>
+  </div>
+</section>
+
+<dl class="stat-row gradebook-stats">
+  <div>
+    <dt>ממוצע כולל</dt>
+    <dd>{{ profile.average if profile.average is not none else '—' }}</dd>
+  </div>
+  <div>
+    <dt>נבדקו</dt>
+    <dd>{{ profile.graded }}</dd>
+  </div>
+  <div>
+    <dt>הוגשו</dt>
+    <dd>{{ profile.submitted }}</dd>
+  </div>
+  <div>
+    <dt>חסרים</dt>
+    <dd>{{ profile.missing }}</dd>
+  </div>
+  <div>
+    <dt>באיחור</dt>
+    <dd>{{ profile.late }}</dd>
+  </div>
+  <div>
+    <dt>לסקירה</dt>
+    <dd>{{ profile.needs_review }}</dd>
+  </div>
+</dl>
+
+{% if profile.needs_review %}
+<p class="notice-inline">
+  {{ profile.needs_review }} הגשות מסומנות לסקירה. אפשר לפתוח את ההגשה ולאשר אותה.
+</p>
+{% endif %}
+
+{% if profile.historical %}
+<p class="notice-inline">
+  {{ profile.historical }} ציונים היסטוריים יובאו מ-Google Classroom.
+  הם נכללים בממוצע ובמגמה, אך אינם ניתנים לבדיקה מחדש במנוע.
+</p>
+{% endif %}
+
+{% if record %}
+<section class="card">
+  <div class="section-head">
+    <h2>פרטי תלמיד מהאלפון</h2>
+    {% if record.class_label %}<span class="count">{{ record.class_label }}</span>{% endif %}
+  </div>
+  <dl class="stat-row profile-contact">
+    {% if record.national_id %}
+    <div><dt>ת.ז</dt><dd><span dir="ltr">{{ record.national_id }}</span></dd></div>
+    {% endif %}
+    {% if record.email %}
+    <div><dt>אימייל</dt><dd><span dir="ltr">{{ record.email }}</span></dd></div>
+    {% endif %}
+    {% if record.phone %}
+    <div><dt>טלפון</dt><dd><span dir="ltr">{{ record.phone }}</span></dd></div>
+    {% endif %}
+    {% if record.parent_name %}
+    <div><dt>הורה</dt><dd>{{ record.parent_name }}</dd></div>
+    {% endif %}
+    {% if record.parent_phone %}
+    <div><dt>טלפון הורה</dt><dd><span dir="ltr">{{ record.parent_phone }}</span></dd></div>
+    {% endif %}
+    {% if record.parent_email %}
+    <div><dt>אימייל הורה</dt><dd><span dir="ltr">{{ record.parent_email }}</span></dd></div>
+    {% endif %}
+  </dl>
+</section>
+{% endif %}
+
+{% if profile.history %}
+<section class="card">
+  <div class="section-head">
+    <h2>מגמת ציונים</h2>
+    <span class="count">{{ profile.history|length }} אחרונים</span>
+  </div>
+  <ol class="profile-trend">
+    {% for item in profile.history %}
+    <li>
+      <span class="trend-score">{{ item.score }}</span>
+      <div>
+        <strong>{{ item.assignment_title }}</strong>
+        <p class="muted">
+          {{ item.class_name }}
+          {% if item.graded_at %}· {{ item.graded_at|local_dt }}{% endif %}
+          {% if item.historical %}· ציון היסטורי{% endif %}
+        </p>
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+{% for item in profile.classes %}
+<section class="card">
+  <div class="section-head">
+    <h2>
+      <a href="/teacher/classes/{{ item.group.id }}">{{ item.group.name }}</a>
+      {% if item.average is not none %}
+      <span class="count">ממוצע {{ item.average }}</span>
+      {% endif %}
+    </h2>
+    <div class="row-actions">
+      <span class="count">{{ item.entries|length }} מטלות</span>
+      <a class="button button-quiet" href="/teacher/classes/{{ item.group.id }}/gradebook">
+        ספר ציונים
+      </a>
+    </div>
+  </div>
+
+  {% if item.entries %}
+  <ul class="grading-list">
+    {% for entry in item.entries %}
+    <li class="grading-row">
+      <div class="grading-main">
+        <div class="assignment-title-row">
+          <strong>{{ entry.assignment.title }}</strong>
+          <span class="badge {{ entry.cell.badge }}">{{ entry.cell.label }}</span>
+          {% if entry.cell.historical %}
+          <span class="badge badge-type">היסטורי</span>
+          {% endif %}
+          {% if entry.cell.late %}
+          <span class="badge badge-late">באיחור</span>
+          {% endif %}
+          {% if entry.cell.needs_review %}
+          <span class="badge badge-warning">לסקירה</span>
+          {% endif %}
+          {% if entry.cell.reviewed %}
+          <span class="badge badge-published">נסקר</span>
+          {% endif %}
+        </div>
+        <div class="meta muted">
+          {% if entry.assignment.due_at %}
+          יעד {{ entry.assignment.due_at|local_dt }}
+          {% else %}
+          ללא תאריך יעד
+          {% endif %}
+          {% if entry.cell.score is not none %}
+          · ציון {{ entry.cell.score }}
+          {% endif %}
+          {% if entry.cell.submitted_at %}
+          · הוגש {{ entry.cell.submitted_at|local_dt }}
+          {% endif %}
+        </div>
+        {% if entry.cell.review_note %}
+        <p class="profile-note"><strong>הערת בדיקה:</strong> {{ entry.cell.review_note }}</p>
+        {% elif entry.cell.feedback %}
+        <p class="profile-note muted">{{ entry.cell.feedback }}</p>
+        {% endif %}
+      </div>
+      {% if entry.cell.submission_id %}
+      <a class="button button-secondary" href="/teacher/submissions/{{ entry.cell.submission_id }}">
+        להגשה
+      </a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">אין מטלות מפורסמות בכיתה הזו.</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

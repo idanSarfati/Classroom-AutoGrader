@@ -1,0 +1,5 @@
+# Keep the free DuckDNS hostname alive: DuckDNS deletes a subdomain that has
+# not been updated for 30 days, and any successful update counts as activity.
+# The token lives in /etc/duckdns/duckdns.conf (root only, mode 600).
+# Output goes to /var/log/duckdns-update.log, one short line per run.
+17 6 * * * root /usr/local/bin/duckdns-update >>/var/log/duckdns-update.log 2>&1

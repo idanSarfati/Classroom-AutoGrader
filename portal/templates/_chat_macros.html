@@ -1,0 +1,40 @@
+{# Shared building blocks for the student and teacher chat surfaces. The same
+   markup is rendered server-side on first load and rebuilt by app.js on every
+   poll, so the two never drift. Message bodies are emitted as text (Jinja
+   autoescape) and the JS uses textContent, so a message can never inject HTML. #}
+
+{% macro thread(messages) %}
+<div class="chat-thread" data-chat-thread role="log" aria-live="polite" aria-label="הודעות">
+  {% if messages %}
+  {% for m in messages %}
+  <div class="chat-msg {{ 'chat-msg-mine' if m.mine else 'chat-msg-theirs' }}">
+    {% if m.context_label %}
+    <div class="chat-msg-context"><span class="chat-context-tag">בהקשר: {{ m.context_label }}</span></div>
+    {% endif %}
+    <div class="chat-msg-body">{{ m.body }}</div>
+    <time class="chat-msg-time" data-iso="{{ m.created_at }}">{{ m.created_local }}</time>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="chat-empty muted" data-chat-empty>אין עדיין הודעות בשיחה הזו. כתבו את ההודעה הראשונה.</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro compose(send_url, peer_param, active, csrf, max_chars, assignment='') %}
+<form class="chat-compose" data-chat-compose
+      data-send-url="{{ send_url }}"
+      data-peer-param="{{ peer_param }}"
+      data-peer="{{ active if active else '' }}"
+      data-csrf="{{ csrf }}"
+      {% if assignment %}data-assignment="{{ assignment }}"{% endif %}>
+  <label class="visually-hidden" for="chat-input-{{ peer_param }}">הודעה</label>
+  <textarea id="chat-input-{{ peer_param }}" class="chat-input" data-chat-input
+            rows="2" maxlength="{{ max_chars }}"
+            placeholder="כתבו הודעה…"
+            {% if not active %}disabled{% endif %}></textarea>
+  <button type="submit" class="button button-primary chat-send"
+          {% if not active %}disabled{% endif %}>שליחה</button>
+  <span class="chat-status muted" data-chat-status role="status"></span>
+</form>
+{% endmacro %}

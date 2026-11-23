@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}ייבוא מ-Google Classroom · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>ייבוא תוכן</span>
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>ייבוא מ-Google Classroom</h1>
+    <p class="muted">
+      התצוגה המקדימה קוראת מ-Google בלבד. שום דבר לא נחשף לתלמידים עד
+      שתאשרו ותפרסמו את השיעור או המטלה.
+    </p>
+  </div>
+  {% if selected %}
+  <div class="head-actions">
+    <a class="button button-quiet" href="/teacher/classes/{{ selected.id }}">לכיתה {{ selected.name }}</a>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="section-head">
+    <h2>בחירת כיתת יעד</h2>
+  </div>
+  <form method="get" action="/teacher/import" class="row-form compact">
+    <select name="class_id" aria-label="כיתת יעד" required>
+      <option value="">בחרו כיתה…</option>
+      {% for group in classes %}
+      <option value="{{ group.id }}" {% if selected and selected.id == group.id %}selected{% endif %}>{{ group.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="button">הצגה</button>
+  </form>
+  {% if not classes %}
+  <p class="muted">צרו קודם כיתה במסך "הכיתות שלי".</p>
+  {% endif %}
+</section>
+
+{% if source_error %}
+<div class="flash flash-error" role="status">{{ source_error }}</div>
+{% endif %}
+
+{% if selected %}
+<section class="card">
+  <div class="section-head">
+    <h2>קורס ב-Google Classroom</h2>
+    {% if links.get(selected.id) %}
+    <span class="badge badge-published">מקושר: {{ links.get(selected.id).course_name }}</span>
+    {% endif %}
+  </div>
+  {% if courses %}
+  <form method="post" action="/teacher/import/preview" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="class_id" value="{{ selected.id }}">
+    <div>
+      <label for="import-course">קורס</label>
+      <select id="import-course" name="course_id" required>
+        {% for course in courses %}
+        <option value="{{ course.id }}">{{ course.name }}{% if course.section %} · {{ course.section }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <label class="checkbox-row">
+      <input type="checkbox" name="include_drafts" value="on">
+      <span>לכלול גם טיוטות מהקורס</span>
+    </label>
+    <button type="submit" class="button button-primary">בניית תצוגה מקדימה</button>
+  </form>
+  {% else %}
+  <p class="muted">לא נמצאו קורסים זמינים, או שאין הרשאת Google תקינה.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="section-head">
+    <h2>מצגות מ-Drive</h2>
+    <span class="muted">לייבוא שיעור שלא מצורף למטלה</span>
+  </div>
+
+  <form method="get" action="/teacher/import" class="row-form compact">
+    <input type="hidden" name="class_id" value="{{ selected.id }}">
+    <input type="hidden" name="show_decks" value="1">
+    <input name="folder_id" type="text" dir="ltr" value="{{ folder_id }}"
+           placeholder="מזהה תיקיית Drive (אופציונלי)" aria-label="מזהה תיקיית Drive">
+    <button type="submit" class="button">הצגת מצגות</button>
+  </form>
+
+  {% if deck_groups %}
+  <form method="post" action="/teacher/import/decks" class="stack form-panel">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="class_id" value="{{ selected.id }}">
+    <input type="hidden" name="folder_id" value="{{ folder_id }}">
+    <ul class="import-attachments">
+      {% for deck, duplicates in deck_groups %}
+      <li>
+        <label class="checkbox-row">
+          <input type="checkbox" name="deck_ids" value="{{ deck.file_id }}">
+          <span>{{ deck.title }}</span>
+        </label>
+        {% if duplicates %}
+        <span class="badge badge-draft">{{ duplicates + 1 }} עותקים</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <button type="submit" class="button button-primary">ייבוא המצגות שנבחרו</button>
+  </form>
+  {% elif folder_id or request.query_params.get('show_decks') %}
+  <p class="muted">לא נמצאו מצגות בתיקייה הזו.</p>
+  {% endif %}
+
+  <details class="disclosure">
+    <summary class="button button-quiet">ייבוא מצגת לפי מזהה</summary>
+    <form method="post" action="/teacher/import/decks" class="row-form form-panel">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="class_id" value="{{ selected.id }}">
+      <input name="deck_id" type="text" dir="ltr" required
+             placeholder="מזהה המצגת ב-Drive" aria-label="מזהה המצגת">
+      <button type="submit" class="button">תצוגה מקדימה</button>
+    </form>
+  </details>
+</section>
+{% endif %}
+
+{% if jobs %}
+<section class="card">
+  <div class="section-head">
+    <h2>ייבואים אחרונים</h2>
+  </div>
+  <ul class="lesson-list">
+    {% set state_labels = {
+      'preview': 'תצוגה מקדימה',
+      'queued': 'בתור',
+      'running': 'פועל',
+      'completed': 'הושלם',
+      'partial': 'הושלם חלקית',
+      'failed': 'נכשל',
+      'cancelled': 'בוטל'
+    } %}
+    {% for job in jobs %}
+    <li class="lesson-row">
+      <div class="lesson-main">
+        <div class="assignment-title-row">
+          <a class="lesson-link" href="/teacher/import/jobs/{{ job.id }}">
+            {{ 'מצגות מ-Drive' if job.kind == 'decks' else ('הוספה מהקורס' if job.kind == 'selection' else 'ייבוא קורס') }} #{{ job.id }}
+          </a>
+          <span class="badge {{ 'badge-published' if job.state == 'completed' else 'badge-draft' }}">
+            {{ state_labels.get(job.state, job.state) }}
+          </span>
+        </div>
+        <div class="meta muted">
+          {{ job.created_at|local_dt }}
+          · {{ job_counts.get(job.id, {}).get('total', 0) }} פריטים
+          {% if job_counts.get(job.id, {}).get('imported') %}
+          · יובאו {{ job_counts.get(job.id, {}).get('imported') }}
+          {% endif %}
+        </div>
+      </div>
+      <a class="button button-secondary" href="/teacher/import/jobs/{{ job.id }}">פתיחה</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

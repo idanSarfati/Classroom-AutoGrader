@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}ייבוא #{{ job.id }} · {{ app_name }}{% endblock %}
+{% block head_extra %}
+{% if job.state in ('queued', 'running') %}
+<meta http-equiv="refresh" content="4">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/import?class_id={{ job.class_id or '' }}">ייבוא תוכן</a>
+  <span aria-hidden="true">/</span>
+  <span>ייבוא #{{ job.id }}</span>
+</nav>
+
+{% set state_labels = {
+  'preview': 'תצוגה מקדימה – ממתין לאישור',
+  'queued': 'בתור לייבוא',
+  'running': 'הייבוא פועל…',
+  'completed': 'הושלם',
+  'partial': 'הושלם חלקית',
+  'failed': 'נכשל',
+  'cancelled': 'בוטל'
+} %}
+{% set action_labels = {
+  'skip': 'דילוג',
+  'assignment': 'מטלה עם מחוון',
+  'lesson': 'שיעור / קריאה',
+  'reuse_lesson': 'שימוש חוזר בשיעור מכיתה אחרת',
+  'reuse_assignment': 'שימוש חוזר במטלה מכיתה אחרת'
+} %}
+{% set type_labels = {
+  'application/vnd.google-apps.document': 'מסמך Google',
+  'application/vnd.google-apps.presentation': 'מצגת Google',
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word'
+} %}
+
+<section class="page-head">
+  <div>
+    <h1>{{ manifest.course_name or 'ייבוא תוכן' }}</h1>
+    <p class="muted">
+      כיתה: {{ manifest.class_name or '—' }}
+      · {{ counts.get('total', manifest.items|length) }} פריטים
+      {% if manifest.include_drafts %}· כולל טיוטות{% endif %}
+    </p>
+  </div>
+  <div class="head-actions">
+    <span class="badge {{ 'badge-published' if job.state == 'completed' else 'badge-draft' }}">
+      {{ state_labels.get(job.state, job.state) }}
+    </span>
+  </div>
+</section>
+
+{% if job.error %}
+<div class="flash flash-error" role="status">{{ job.error }}</div>
+{% endif %}
+
+{% if job.state in ('queued', 'running') %}
+<section class="card">
+  <p>ההייבוא רץ ברקע. אפשר להשאיר את העמוד פתוח; הוא מתרענן לבד.</p>
+  <p class="muted">אם התהליך נעצר, אפשר לחדש אותו מהכפתור שיופיע כאן.</p>
+</section>
+{% endif %}
+
+{% if job.state in ('preview', 'failed', 'partial') %}
+<datalist id="rubric-options">
+  {% for choice in rubric_choices %}
+  <option value="{{ choice }}"></option>
+  {% endfor %}
+</datalist>
+
+<form method="post" action="/teacher/import/jobs/{{ job.id }}/apply" class="stack">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  {% for item in manifest.items %}
+  {% set record = records.get(item.source_id) %}
+  <article class="card import-item">
+    <div class="section-head">
+      <div>
+        <h2>{{ item.title }}</h2>
+        <div class="meta muted">
+          {% if item.topic_name %}{{ item.topic_name }} · {% endif %}
+          {{ item.attachments|length }} קבצים
+          {% if item.due_at %}· יעד במקור: {{ item.due_at }}{% endif %}
+        </div>
+      </div>
+      <div class="row-actions">
+        {% if item.duplicate_of %}
+        <span class="badge badge-draft">כפילות שזוהתה</span>
+        {% elif item.duplicate_count %}
+        <span class="badge badge-published">{{ item.duplicate_count }} כפילויות אוחדו</span>
+        {% endif %}
+        {% if item.already_imported %}
+        <span class="badge badge-draft">כבר קיים בכיתה</span>
+        {% endif %}
+        {% if item.reusable_from_class %}
+        <span class="badge badge-type">זמין מהכיתה {{ item.reusable_from_class }}</span>
+        {% endif %}
+        {% if item.rubric_score %}
+        <span class="badge badge-type">התאמת מחוון {{ (item.rubric_score * 100)|round(0, 'floor')|int }}%</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if item.description_text %}
+    <p class="clamp">{{ item.description_text }}</p>
+    {% endif %}
+
+    {% if item.attachments %}
+    <ul class="import-attachments">
+      {% for attachment in item.attachments %}
+      <li>
+        <span class="badge badge-type">{{ type_labels.get(attachment.mime_type, 'קובץ') }}</span>
+        {{ attachment.title }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if item.duplicate_of %}
+    <p class="muted">הפריט יידלג אוטומטית כדי לא ליצור כפילות נוספת.</p>
+    {% else %}
+    <div class="field-grid">
+      <div>
+        <label for="action-{{ item.source_id }}">פעולה</label>
+        <select id="action-{{ item.source_id }}" name="action_{{ item.source_id }}">
+          {% for action in actions %}
+          {% if action != 'reuse_lesson' and action != 'reuse_assignment' %}
+          <option value="{{ action }}" {% if item.suggested_action == action %}selected{% endif %}>
+            {{ action_labels.get(action, action) }}
+          </option>
+          {% elif action == 'reuse_lesson' and item.reusable_from_class and item.suggested_action.startswith('reuse') %}
+          <option value="{{ action }}" selected>{{ action_labels.get(action, action) }}</option>
+          {% elif action == 'reuse_assignment' and item.reusable_from_class and item.suggested_action.startswith('reuse') %}
+          <option value="{{ action }}" selected>{{ action_labels.get(action, action) }}</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="rubric-{{ item.source_id }}">קובץ מחוון (למטלה)</label>
+        <input id="rubric-{{ item.source_id }}" name="rubric_{{ item.source_id }}"
+               type="text" dir="ltr" list="rubric-options" spellcheck="false"
+               value="{{ item.suggested_rubric }}"
+               placeholder="assignments/lesson_1.json">
+        {% if item.rubric_reason %}
+        <p class="hint">הצעה: {{ item.rubric_reason }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if record %}
+    <p class="meta muted">
+      סטטוס: {{ record.status }}
+      {% if record.message %}· {{ record.message }}{% endif %}
+    </p>
+    {% endif %}
+  </article>
+  {% endfor %}
+
+  <div class="form-actions">
+    <button type="submit" class="button button-primary">אישור וייבוא כטיוטות</button>
+    <a class="button button-quiet" href="/teacher/import?class_id={{ job.class_id or '' }}">חזרה</a>
+  </div>
+</form>
+{% endif %}
+
+{% if job.state in ('failed', 'partial', 'queued') %}
+<form method="post" action="/teacher/import/jobs/{{ job.id }}/resume" class="row-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="button button-secondary">המשך ייבוא מהנקודה שבה נעצר</button>
+</form>
+{% endif %}
+
+{% if job.state in ('completed', 'partial', 'failed') %}
+<section class="card">
+  <h2>תוצאות הייבוא</h2>
+  <ul class="lesson-list">
+    {% for item in manifest.items %}
+    {% set record = records.get(item.source_id) %}
+    <li class="lesson-row">
+      <div class="lesson-main">
+        <strong>{{ item.title }}</strong>
+        <div class="meta muted">
+          {% if item.duplicate_of %}
+          כפילות שזוהתה · דולג
+          {% elif record %}
+          {{ record.status }}{% if record.message %} · {{ record.message }}{% endif %}
+          {% else %}
+          לא עובד
+          {% endif %}
+        </div>
+      </div>
+      <div class="row-actions">
+        {% if record and record.portal_type == 'lesson' and record.portal_id %}
+        <a class="button button-small" href="/teacher/lessons/{{ record.portal_id }}">לשיעור</a>
+        {% elif record and record.portal_type == 'assignment' and record.portal_id %}
+        <a class="button button-small" href="/teacher/classes/{{ job.class_id }}">לכיתה</a>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if job.state == 'completed' %}
+<section class="card">
+  <h2>הייבוא הושלם</h2>
+  <p>
+    יובאו {{ counts.get('imported', 0) }} פריטים, עודכנו {{ counts.get('updated', 0) }},
+    דולגו {{ counts.get('skipped', 0) }}, ונכשלו {{ counts.get('failed', 0) }}.
+  </p>
+  <p class="muted">כל התוכן נוצר כטיוטה. עברו על השיעורים והמטלות ופרסמו כשמוכנים.</p>
+  <div class="row-actions">
+    <a class="button button-secondary" href="/teacher/lessons?class_id={{ job.class_id or '' }}">לשיעורים</a>
+    <a class="button button-quiet" href="/teacher/classes/{{ job.class_id }}">לכיתה</a>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

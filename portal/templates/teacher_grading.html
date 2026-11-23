@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}בדיקות והגשות · {{ app_name }}{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="מיקום">
+  <a href="/teacher">הכיתות שלי</a>
+  {% if group %}
+  <span aria-hidden="true">/</span>
+  <a href="/teacher/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>בדיקות</span>
+  {% else %}
+  <span aria-hidden="true">/</span>
+  <span>בדיקות</span>
+  {% endif %}
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ 'בדיקות · ' ~ group.name if group else 'מרכז הבדיקות' }}</h1>
+    <p class="muted">
+      הגשות התלמידים, מצב הבדיקה והציון של כל מטלה. הבדיקה רצה ברקע.
+    </p>
+  </div>
+  {% if group %}
+  <a class="button button-secondary" href="/teacher/classes/{{ group.id }}">חזרה לכיתה</a>
+  {% endif %}
+</section>
+
+{% if waiting_total %}
+<p class="notice-inline">
+  {{ waiting_total }} הגשות ממתינות לבדיקה או לסקירה. אפשר להמשיך בעבודה -
+  הן ייבדקו ברקע.
+</p>
+{% endif %}
+
+{% if sections %}
+<section class="stack" aria-label="מטלות לבדיקה">
+  {% for section in sections %}
+  <article class="card">
+    <div class="section-head">
+      <h2>
+        {% if group %}{{ section.group.name }}{% else %}
+        <a href="/teacher/classes/{{ section.group.id }}">{{ section.group.name }}</a>
+        {% endif %}
+      </h2>
+      <span class="count">{{ section.rows|length }} מטלות · {{ section.enrolled }} תלמידים</span>
+    </div>
+
+    {% if section.rows %}
+    <ul class="grading-list">
+      {% for row in section.rows %}
+      {% set c = row.counts %}
+      <li class="grading-row">
+        <div class="grading-main">
+          <div class="assignment-title-row">
+            <a class="assignment-link" href="/teacher/assignments/{{ row.assignment.id }}/grading">
+              {{ row.assignment.title }}
+            </a>
+            {% if not row.assignment.published %}
+            <span class="badge badge-draft">טיוטה</span>
+            {% endif %}
+            {% if c.get('needs_review') %}
+            <span class="badge badge-warning">לסקירה {{ c.get('needs_review') }}</span>
+            {% endif %}
+          </div>
+          <div class="meta muted">
+            הוגשו {{ c.get('submitted', 0) }} מתוך {{ section.enrolled }}
+            · ממתינים {{ c.get('pending', 0) }}
+            · נבדקו {{ c.get('graded', 0) }}
+            {% if c.get('failed') %}· נכשלו {{ c.get('failed') }}{% endif %}
+          </div>
+        </div>
+        <a class="button button-secondary" href="/teacher/assignments/{{ row.assignment.id }}/grading">
+          לבדיקה
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">אין מטלות בכיתה הזו.</p>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% else %}
+<section class="card empty-state">
+  <h2>אין עדיין כיתות</h2>
+  <p>צרו כיתה ומטלה, ואחרי שהתלמידים יגישו תראו כאן את ההגשות.</p>
+</section>
+{% endif %}
+{% endblock %}

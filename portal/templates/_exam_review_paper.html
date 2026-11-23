@@ -1,0 +1,339 @@
+{# The teacher's view of one hand-in: the exact paper the student sat - their
+   version, their question order and shuffled options - with the answers they
+   stored, and a point editor under every question. The rendering mirrors the
+   student page but stays read-only, so nothing here can submit an answer.
+   The stored values are keyed by item and part, so the shuffled order never
+   moves an answer under the wrong question. #}
+
+{% macro part_answer(part, value) %}
+{% if part.kind in ('code', 'code_plain') %}
+{% if value is string and value.strip() %}
+<pre class="code-block exam-review-code" dir="ltr"><code>{{ value }}</code></pre>
+{% else %}
+<p class="muted exam-review-empty">לא נענה</p>
+{% endif %}
+
+{% elif part.kind == 'code_line' %}
+{% if value is string and value.strip() %}
+<pre class="exam-review-line" dir="ltr"><code>{{ value }}</code></pre>
+{% else %}
+<p class="muted exam-review-empty">לא נענה</p>
+{% endif %}
+
+{% elif part.kind == 'short' %}
+{% if value is string and value.strip() %}
+<div class="exam-review-text">{{ value }}</div>
+{% else %}
+<p class="muted exam-review-empty">לא נענה</p>
+{% endif %}
+
+{% elif part.kind == 'table' %}
+{% set rows_value = value if value is not string and value else [] %}
+<div class="worksheet-table-wrap">
+  <table class="worksheet-table exam-review-table">
+    <thead>
+      <tr>
+        {% for column in part.columns %}
+        <th scope="col">{{ column.label }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in part.rows %}
+      {% set row_index = loop.index0 %}
+      {% set saved = rows_value[row_index] if rows_value|length > row_index and rows_value[row_index] is mapping else {} %}
+      <tr>
+        {% for column in part.columns %}
+        {% if column.readonly %}
+        <td class="given">
+          {% if column.code %}<pre dir="ltr">{{ row.cells[loop.index0] }}</pre>
+          {% else %}{{ row.cells[loop.index0] }}{% endif %}
+        </td>
+        {% else %}
+        {% set cell = saved.get(column.key) if saved else '' %}
+        <td>
+          {% if cell %}
+          {% if column.code %}<pre dir="ltr">{{ cell }}</pre>{% else %}{{ cell }}{% endif %}
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif part.kind == 'choice' %}
+{% set chosen_list = value if value is not string and value else [] %}
+<ul class="exam-review-choices">
+  {% for statement in part.statements %}
+  {% set statement_index = loop.index0 %}
+  {% set chosen = chosen_list[statement_index] if chosen_list|length > statement_index else '' %}
+  <li>
+    <span class="choice-index">{{ statement_index + 1 }}.</span>
+    <div>
+      <p class="choice-prompt">{{ statement.prompt }}</p>
+      {% if statement.code %}
+      <pre class="choice-code" dir="ltr"><code>{{ statement.code }}</code></pre>
+      {% endif %}
+      <p class="exam-review-choice">
+        {% if chosen %}
+        התשובה: <strong dir="ltr">{{ chosen }}</strong>
+        {% else %}
+        <span class="muted">לא נבחרה תשובה</span>
+        {% endif %}
+      </p>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endmacro %}
+
+
+{% macro part_mark(part, score) %}
+{# Why this answer earned what it earned, right under the answer. One block
+   per part: an explanation and a corrected program lose different points for
+   different reasons, and the teacher has to see which is which.
+   When the teacher has overridden the whole question by hand, these part
+   numbers are the *automatic* breakdown that the manual score supersedes - not
+   the current score. They are labelled and dimmed so they can never contradict
+   the manual total shown in the question editor below. #}
+{% set mark = score.parts.get(part.key) if score and score.parts else None %}
+{% if mark %}
+{% set overridden = score.manual if score else None %}
+{% set part_manual = mark.manual %}
+{% set lost = mark.points - mark.earned %}
+<div class="exam-part-mark {{ 'exam-part-lost' if lost > 0 and not overridden and not part_manual else 'exam-part-full' }}{{ ' exam-part-superseded' if overridden else '' }}">
+  <div class="exam-part-mark-head">
+    <span class="exam-part-name">{{ mark.label }}</span>
+    {% if overridden %}
+    <span class="exam-part-points exam-part-auto">ניקוד אוטומטי: <span class="exam-part-auto-num">{{ mark.earned }}/{{ mark.points }}</span></span>
+    <span class="exam-part-auto-badge">הוחלף בניקוד ידני</span>
+    {% elif part_manual %}
+    <span class="exam-part-points">{{ mark.earned }} מתוך {{ mark.points }} נק׳</span>
+    <span class="badge badge-warning">הותאם ידנית</span>
+    <span class="exam-part-points exam-part-auto">ניקוד אוטומטי: <span class="exam-part-auto-num">{{ part_manual.auto_points }}/{{ mark.points }}</span></span>
+    {% else %}
+    <span class="exam-part-points">{{ mark.earned }} מתוך {{ mark.points }} נק׳</span>
+    {% if lost > 0 %}
+    <span class="exam-part-delta">−{{ lost }} נק׳</span>
+    {% endif %}
+    {% if mark.needs_review %}
+    <span class="badge badge-warning">לבדיקת המורה</span>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% if mark.note %}
+  <p class="exam-part-note">{{ mark.note }}</p>
+  {% endif %}
+  {% if part_manual and part_manual.note %}
+  <p class="exam-part-note">הערת המורה: {{ part_manual.note }}</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{% macro part_score(item, part, mark) %}
+{# One score box per scored part of a multi-part question. The teacher grades the
+   explanation and the program separately, each within its own rubric slice; the
+   question total below is the read-only sum. Shown only when the question is
+   multi-part and has no legacy whole-question override. #}
+<div class="manual-grade exam-part-score">
+  <form method="post"
+        action="/teacher/submissions/{{ submission.id }}/questions/{{ item.key }}/parts/{{ part.key }}/adjust"
+        class="manual-grade-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>
+      ניקוד ל{{ mark.label }}
+      <input type="number" name="points" min="0" max="{{ mark.points }}"
+             value="{{ mark.earned }}" inputmode="numeric" step="1">
+    </label>
+    <label>
+      הערה (אופציונלי)
+      <input type="text" name="note" maxlength="1000"
+             placeholder="למשל: התכוון ל-19, שגיאת הקלדה">
+    </label>
+    <button type="submit" class="button button-primary button-small">
+      שמירת ניקוד
+    </button>
+    <button type="submit" name="full" value="1"
+            class="button button-secondary button-small">
+      ניקוד מלא ({{ mark.points }})
+    </button>
+  </form>
+  {% if mark.manual %}
+  <form method="post"
+        action="/teacher/submissions/{{ submission.id }}/questions/{{ item.key }}/parts/{{ part.key }}/reset"
+        class="inline-form"
+        data-confirm="לבטל את ההתאמה ולהחזיר את הניקוד האוטומטי?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button button-secondary button-small">
+      ביטול התאמה
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro item_score(item, score, editable=True) %}
+{# The question total. A single-part question keeps one editor here; a multi-part
+   question (explanation + program) is graded part by part in the boxes under each
+   answer, so this total is their read-only sum. A legacy whole-question override
+   still shows its single editor here, with the parts above marked superseded.
+   When the exam is reopened the previous hand-in is read-only (editable=False). #}
+{% set status_class = {
+  'CORRECT': 'status-ok',
+  'PARTIALLY_CORRECT': 'status-partial',
+  'INCORRECT': 'status-bad',
+  'MISSING': 'status-missing'
+} %}
+{% set per_part_mode = score.parts and score.parts|length > 1 and not score.manual %}
+<div class="manual-grade exam-question-score">
+  <div class="manual-grade-head">
+    <span class="muted">
+      ניקוד לשאלה: <strong>{{ score.earned }}</strong> מתוך {{ score.points }}
+    </span>
+    <span class="status-chip {{ status_class.get(score.status, 'status-missing') }}">
+      {{ task_status_labels.get(score.status, score.status) }}
+    </span>
+    {% if score.manual %}
+    <span class="badge badge-warning">הותאם ידנית</span>
+    {% endif %}
+    {% if score.manual and score.manual.by_name %}
+    <span class="muted">על ידי {{ score.manual.by_name }}</span>
+    {% endif %}
+  </div>
+  {% if score.manual %}
+  <p class="muted">
+    הניקוד האוטומטי היה {{ score.manual.auto_points }} מתוך {{ score.points }}.
+    {% if score.manual.note %}הערה: {{ score.manual.note }}{% endif %}
+  </p>
+  {% if score.parts %}
+  <p class="muted exam-manual-parts-note">
+    הניקוד שקבעתם הוא הקובע לשאלה כולה; הפירוט לפי חלקים למעלה הוא הניקוד האוטומטי המקורי בלבד.
+  </p>
+  {% endif %}
+  {% if editable %}
+  <form method="post"
+        action="/teacher/submissions/{{ submission.id }}/questions/{{ item.key }}/reset"
+        class="inline-form"
+        data-confirm="לבטל את ההתאמה ולהחזיר את הניקוד האוטומטי?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="button button-secondary button-small">
+      ביטול התאמה
+    </button>
+  </form>
+  {% endif %}
+  {% endif %}
+  {% if per_part_mode %}
+  <p class="muted exam-manual-parts-note">
+    הניקוד הכולל הוא סכום החלקים. כל חלק מקבל ניקוד בנפרד למעלה, מתחת לתשובה שלו.
+  </p>
+  {% elif editable %}
+  <form method="post"
+        action="/teacher/submissions/{{ submission.id }}/questions/{{ item.key }}/adjust"
+        class="manual-grade-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>
+      ניקוד
+      <input type="number" name="points" min="0" max="{{ score.points }}"
+             value="{{ score.earned }}" inputmode="numeric" step="1">
+    </label>
+    <label>
+      הערה (אופציונלי)
+      <input type="text" name="note" maxlength="1000"
+             placeholder="למשל: התכוון ל-19, שגיאת הקלדה">
+    </label>
+    <button type="submit" class="button button-primary button-small">
+      שמירת ניקוד
+    </button>
+    <button type="submit" name="full" value="1"
+            class="button button-secondary button-small">
+      ניקוד מלא ({{ score.points }})
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro item_block(item, values, scores, editable=True) %}
+{% set item_values = values.get(item.key) or {} %}
+{% set score = scores.get(item.key) %}
+{# The id is the landing anchor after a score save: the server redirects back
+   with #question-… so the teacher stays on the question they just marked
+   instead of being thrown to the top of the paper. #}
+<section class="question-card worksheet-question exam-review-item"
+         id="question-{{ item.key }}">
+  <div class="question-head">
+    <span class="question-number">{{ item.label }}</span>
+    {% if item.points %}
+    <span class="weight-chip">{{ item.points }} נק׳</span>
+    {% endif %}
+  </div>
+  <h3 class="worksheet-title">{{ item.title }}</h3>
+  {% if item.intro %}
+  <p class="question-text worksheet-prompt">{{ item.intro }}</p>
+  {% endif %}
+  {% for part in item.parts %}
+  <div class="worksheet-part worksheet-part-{{ part.kind }}" data-part="{{ part.key }}"
+       id="part-{{ item.key }}-{{ part.key }}">
+    {% if part.label or part.prompt %}
+    <div class="part-head">
+      {% if part.label %}<span class="part-label">{{ part.label }}</span>{% endif %}
+      {% if part.prompt %}<p class="part-prompt">{{ part.prompt }}</p>{% endif %}
+    </div>
+    {% endif %}
+    {% if part.given %}
+    {# The snippet is the question, not an answer. #}
+    <pre class="code-block worksheet-code worksheet-given" dir="ltr"><code>{{ part.code }}</code></pre>
+    {% else %}
+    {% if part.code %}
+    <pre class="code-block worksheet-code" dir="ltr"><code>{{ part.code }}</code></pre>
+    {% endif %}
+    <div class="exam-review-answer">
+      <span class="exam-review-answer-label">התשובה של התלמיד/ה</span>
+      {{ part_answer(part, item_values.get(part.key)) }}
+      {{ part_mark(part, score) }}
+      {% if editable and score and score.parts and score.parts|length > 1 and not score.manual %}
+      {% set mark = score.parts.get(part.key) %}
+      {% if mark %}{{ part_score(item, part, mark) }}{% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% if score and not score.parts and score.notes %}
+  {# Papers marked before per-part marks existed: the reason is one paragraph
+     for the whole question, so it sits under the question, not at the end. #}
+  <div class="exam-part-mark exam-question-note">
+    <div class="exam-part-mark-head">
+      <span class="exam-part-name">פירוט הניקוד</span>
+    </div>
+    <p class="exam-part-note">{{ score.notes }}</p>
+  </div>
+  {% endif %}
+  {% if score %}
+  {{ item_score(item, score, editable) }}
+  {% endif %}
+</section>
+{% endmacro %}
+
+
+{% macro review_paper(paper, values, scores, editable=True) %}
+{% for section_name, section_items in paper.sections() %}
+{% if section_name %}
+<div class="worksheet-section-head">
+  <h3>{{ section_name }}</h3>
+  <span class="weight-chip">{{ section_items|sum(attribute='points') }} נק׳</span>
+</div>
+{% endif %}
+{% for item in section_items %}
+{{ item_block(item, values, scores, editable) }}
+{% endfor %}
+{% endfor %}
+{% endmacro %}

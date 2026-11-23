@@ -1,0 +1,46 @@
+<section class="preview-banner" aria-label="תצוגה מקדימה">
+  <div class="preview-banner-main">
+    {% if preview_draft %}
+    <span class="badge badge-draft">טיוטה</span>
+    <div>
+      <strong>כך המטלה תיראה לתלמידים לאחר הפרסום</strong>
+      <p class="muted">
+        המטלה עדיין לא מפורסמת, ולכן אינה מופיעה אצל התלמידים.
+        במצב זה אין הגשה, ציונים או עריכה.
+      </p>
+    </div>
+    {% else %}
+    <span class="badge badge-published">תצוגת תלמיד</span>
+    <div>
+      <strong>כך תלמידי הכיתה רואים את התוכן</strong>
+      <p class="muted">
+        מוצג רק תוכן מפורסם — שיעורים ומטלות. במצב זה אין הגשה, ציונים או עריכה.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+  <div class="preview-banner-actions">
+    {% if preview_classes %}
+    <label class="preview-class-label" for="preview-class">מעבר לכיתה</label>
+    <select id="preview-class" data-preview-class>
+      {% for item in preview_classes %}
+      <option value="{{ item.id }}" {% if item.id == preview_group_id %}selected{% endif %}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
+    {% if preview_group_id %}
+    <a class="button button-secondary" href="/teacher/classes/{{ preview_group_id }}">חזרה לניהול הכיתה</a>
+    {% else %}
+    <a class="button button-secondary" href="/teacher">חזרה לכיתות</a>
+    {% endif %}
+  </div>
+</section>
+<script>
+  document.querySelectorAll("[data-preview-class]").forEach(function (select) {
+    select.addEventListener("change", function () {
+      if (select.value) {
+        window.location.href = "/teacher/preview/classes/" + select.value;
+      }
+    });
+  });
+</script>

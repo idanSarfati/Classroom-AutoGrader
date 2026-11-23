@@ -1,0 +1,242 @@
+{
+  "version": 1,
+  "rubric": "exam_unit3_input_a",
+  "title": "בוחן יחידה 3 - פקודת קלט והמרת טיפוסים - גרסה א'",
+  "note": "ענו על כל השאלות. בדף הזה אין כפתור הרצה — קראו את הקוד וחשבו מה הוא עושה. אפשר להגיש פעם אחת בלבד.",
+  "items": [
+    {
+      "key": "a1",
+      "number": 1,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "איזה טיפוס נתונים מחזירה תמיד פקודת הקלט input() בפייתון לפני ביצוע המרה כלשהי?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["מספר שלם (int)", "מחרוזת (str)", "מספר עשרוני (float)", "בוליאני (bool)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a2",
+      "number": 2,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יהיה הפלט של קטע הקוד הבא אם המשתמש יקליד 7 ואז 2?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "a = input(\"Enter first: \")\nb = input(\"Enter second: \")\nprint(a + b)",
+              "options": ["9", "72", "7 2", "שגיאת הרצה (TypeError)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a3",
+      "number": 3,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "כיצד יש לכתוב קוד שקולט מהמשתמש גיל כמספר שלם ושומר אותו במשתנה age?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["age = input(int(\"Enter age: \"))", "age = int(input(\"Enter age: \"))", "age = input(\"Enter age:\").int()", "int age = input(\"Enter age:\")"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a4",
+      "number": 4,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה יקרה אם נריץ את השורה הבאה והמשתמש יקליד את המילה python במקום מספר?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "code": "code = int(input(\"Enter code: \"))",
+              "options": ["המשתנה code יקבל את הערך 0", "המשתנה code יקבל את הטקסט \"python\"", "תתרחש שגיאת המרה (ValueError)", "התוכנית תתעלם ותמשיך בלי בעיה"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "a5",
+      "number": 5,
+      "section": "חלק א': שאלות אמריקאיות",
+      "points": 5,
+      "title": "מה תפקידו של המאפיין end בפקודת ההדפסה (print)?",
+      "parts": [
+        {
+          "key": "response",
+          "kind": "choice",
+          "statements": [
+            {
+              "prompt": "בחרו תשובה אחת",
+              "options": ["לסיים את כל התוכנית בסוף ההדפסה", "לקבוע מה יופיע בסוף שורת ההדפסה במקום מעבר שורה אוטומטי", "להמיר את הפלט למחרוזת", "להוסיף סימן קריאה בסוף הפלט"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "b1",
+      "number": 6,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 12,
+      "title": "מה יודפס למסך?",
+      "intro": "הנחה: המשתמש הקליד 15 בקלט הראשון, ומינוס 4.5 (4.5-) בקלט השני. כתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "num1 = int(input())\nnum2 = float(input())\nresult = num1 + num2\nprint(\"Result:\", result)\nprint(type(result))",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "b2",
+      "number": 7,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 12,
+      "title": "מה יודפס למסך?",
+      "intro": "הנחה: המשתמש הקליד את התו * בקלט. כתבו את הפלט המדויק.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "char = input(\"Enter char: \")\nline = char * 5\nprint(line)",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן את שורת הפלט"
+        }
+      ]
+    },
+    {
+      "key": "b3",
+      "number": 8,
+      "section": "חלק ב': מעקב ריצה",
+      "points": 11,
+      "title": "מה יודפס למסך?",
+      "intro": "כתבו את הפלט המדויק, שורה אחר שורה.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "print(\"Python\", end=\"-\")\nprint(\"Code\", end=\"!\")",
+          "given": true
+        },
+        {
+          "key": "response",
+          "kind": "short",
+          "label": "הפלט",
+          "placeholder": "כתבו כאן כל שורת פלט בשורה נפרדת"
+        }
+      ]
+    },
+    {
+      "key": "c1",
+      "number": 9,
+      "section": "חלק ג': תיקון שגיאות",
+      "points": 10,
+      "title": "מצאו את השגיאה וכתבו את הקוד המתוקן",
+      "intro": "התוכנית אמורה לקלוט את מחיר הכרטיס ואת מספר הכרטיסים ולחשב את הסכום לתשלום. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן כך שיפעל.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "ticket_price = input(\"Enter price: \")\ncount = input(\"Enter count: \")\ntotal_sum = ticket_price * count\nprint(\"Total:\", total_sum)",
+          "given": true
+        },
+        {
+          "key": "explain",
+          "kind": "short",
+          "label": "מה השגיאה?",
+          "placeholder": "הסבירו במילים שלכם"
+        },
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "הקוד המתוקן",
+          "placeholder": "כתבו כאן את התוכנית המתוקנת"
+        }
+      ]
+    },
+    {
+      "key": "c2",
+      "number": 10,
+      "section": "חלק ג': תיקון שגיאות",
+      "points": 10,
+      "title": "מצאו את השגיאה וכתבו את הקוד המתוקן",
+      "intro": "התוכנית אמורה לקלוט את שנת הלידה של המשתמש ולחשב את גילו המשוער בשנת 2026. בקוד שלפניכם שגיאה אחת. הסבירו מהי וכתבו את הקוד המתוקן.",
+      "parts": [
+        {
+          "key": "output",
+          "kind": "code_plain",
+          "code": "birth_year = int(input(\"Enter birth year: \"))\nage = 2026 - birth_year\nprint(\"Your age is \" + age)",
+          "given": true
+        },
+        {
+          "key": "explain",
+          "kind": "short",
+          "label": "מה השגיאה?",
+          "placeholder": "הסבירו במילים שלכם"
+        },
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "הקוד המתוקן",
+          "placeholder": "כתבו כאן את התוכנית המתוקנת"
+        }
+      ]
+    },
+    {
+      "key": "d1",
+      "number": 11,
+      "section": "חלק ד': כתיבת קוד מלא",
+      "points": 20,
+      "title": "כתבו תוכנית מלאה",
+      "intro": "כתבו תוכנית שקולטת מהמשתמש את שם המשחק (מחרוזת), את שעות המשחק השבועיות (מספר שלם int), ואת דירוג הכיף של המשחק מ-1 עד 10 (מספר עשרוני float), ומדפיסה הודעה אחת מסודרת המשלבת את שם המשחק, השעות והדירוג עם כיתוב מילולי מתאים.",
+      "parts": [
+        {
+          "key": "code",
+          "kind": "code_plain",
+          "label": "התוכנית שלכם"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "assignment_title": "בוחן רבעוני בפייתון - יחידות 1-2 - גרסה ג",
+  "topic": "מבחן רבעוני",
+  "total_points": 100,
+  "sections": [
+    {
+      "section_name": "חלק א: שאלות אמריקאיות",
+      "weight": 25,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "multiple_choice",
+          "question": "איזה משמות המשתנים הבאים הוא תקין וחוקי? א) student_age  ב) 3students  ג) student#age  ד) age!",
+          "correct_answer": "א (student_age)"
+        },
+        {
+          "id": "q2",
+          "type": "multiple_choice",
+          "question": "מה יהיה הפלט: print(\"Welcome\", \"Students\")? א) WelcomeStudents  ב) Welcome Students  ג) Welcome, Students  ד) שגיאת תחביר",
+          "correct_answer": "ב (Welcome Students)"
+        },
+        {
+          "id": "q3",
+          "type": "multiple_choice",
+          "question": "כיצד כותבים הערה? א) באמצעות //  ב) באמצעות {}  ג) באמצעות #  ד) באמצעות המילה comment",
+          "correct_answer": "ג (באמצעות #)"
+        },
+        {
+          "id": "q4",
+          "type": "multiple_choice",
+          "question": "מהו טיפוס הנתונים של: z = \"12.8\"? א) int  ב) float  ג) str  ד) bool",
+          "correct_answer": "ג (str)"
+        },
+        {
+          "id": "q5",
+          "type": "multiple_choice",
+          "question": "מה תדפיס: print(type(50))? א) <class 'str'>  ב) <class 'int'>  ג) <class 'float'>  ד) 50",
+          "correct_answer": "ב (<class 'int'>)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ב: מעקב ריצה",
+      "weight": 35,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "grade = 88\nsubject = \"Math\"\nprint(\"My grade in\", subject, \"is\", grade)",
+          "expected_output": "My grade in Math is 88"
+        },
+        {
+          "id": "q2",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "x = 7\ny = 15\nx = y\ny = x + 5\nprint(x)\nprint(y)",
+          "expected_output": "15\n20"
+        },
+        {
+          "id": "q3",
+          "type": "expected_output",
+          "question": "מה יהיה הפלט המדויק?",
+          "code": "val1 = 1000\nval2 = \"1000\"\nprint(type(val1))\nprint(type(val2))",
+          "expected_output": "<class 'int'>\n<class 'str'>"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ג: תיקון שגיאות",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "debugging",
+          "question": "חיבור מחרוזת ומספר שלם באמצעות +",
+          "code": "height = 175\nprint(\"My height is \" + height + \" cm\")",
+          "corrected_code": "height = 175\nprint(\"My height is \" + str(height) + \" cm\")"
+        },
+        {
+          "id": "q2",
+          "type": "debugging",
+          "question": "חיבור מחרוזת ומספר שלם באמצעות +",
+          "code": "quantity = 4\ntotal_cost = quantity * unit_price\nunit_price = 10\nprint(total_cost)",
+          "corrected_code": "unit_price = 10\nquantity = 4\ntotal_cost = quantity * unit_price\nprint(total_cost)"
+        }
+      ]
+    },
+    {
+      "section_name": "חלק ד: כתיבת קוד",
+      "weight": 20,
+      "questions": [
+        {
+          "id": "q1",
+          "type": "code_writing",
+          "question": "הגדר משתנה עבור שם של מוצר, כמות במלאי (int), ומחיר (float). הדפסה בפקודת print אחת.",
+          "code": "product_name = \"Laptop\"\nstock = 5\nprice = 299.9\nprint(\"Product:\", product_name, \"| Stock:\", stock, \"| Price:\", price, \"NIS\")",
+          "requirements": [
+            "שם מוצר",
+            "כמות במלאי כ-int",
+            "מחיר כ-float",
+            "פקודת print אחת עם טקסט"
+          ]
+        }
+      ]
+    }
+  ]
+}

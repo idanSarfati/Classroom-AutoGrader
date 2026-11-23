@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set base = preview_base if preview else '/student' %}
+{% if preview %}{% include "_preview_banner.html" %}{% endif %}
+<nav class="breadcrumb" aria-label="מיקום">
+  {% if preview %}
+  <a href="/teacher/classes/{{ group.id }}">ניהול הכיתה</a>
+  <span aria-hidden="true">/</span>
+  <a href="{{ base }}/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+  {% else %}
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <a href="/student/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ assignment.title }}</span>
+  {% endif %}
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ assignment.title }}</h1>
+    <p class="muted">
+      {{ group.name }} · אירוע ציון
+      {% if assignment.due_at %} · {{ assignment.due_at|local_dt }}{% endif %}
+    </p>
+  </div>
+  <span class="badge badge-exam">אירוע ציון</span>
+</section>
+
+{% if preview %}
+<section class="card">
+  <h2>אירוע ציון</h2>
+  <p>
+    זהו אירוע ציון שהמורה הזין. בתצוגת תלמיד מופיע כאן הציון האישי של
+    התלמיד/ה; אין טופס הגשה, כי אין מטלה להגיש.
+  </p>
+</section>
+{% elif result %}
+<section class="card grade-card">
+  <div class="grade-summary">
+    <div class="score-ring" aria-label="ציון {{ result.score }}">
+      <span class="score-number">{{ result.score }}</span>
+      <span class="score-of">/ 100</span>
+    </div>
+    <div class="grade-summary-main">
+      <h2>הציון שלכם</h2>
+      <p class="feedback-text">{{ result.feedback }}</p>
+      <p class="muted">הוזן {{ result.graded_at|local_dt }}</p>
+      {% if result.historical %}
+      <p class="notice-inline">
+        זהו ציון שהוזן על ידי המורה עבור אירוע ציון. אין עבורו קוד שהוגש
+        או פירוט בדיקה, והוא נכלל בממוצע שלכם.
+      </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="card">
+  <h2>הציון טרם הוזן</h2>
+  <p class="muted">
+    המורה טרם הזין ציון עבור אירוע זה. אין צורך להגיש דבר - הציון יופיע
+    כאן לאחר שיוזן.
+  </p>
+</section>
+{% endif %}
+
+{% if assignment.instructions %}
+<section class="card">
+  <div class="section-head">
+    <h2>פרטי האירוע</h2>
+  </div>
+  {% if content and content.body_html %}
+  <div class="prose rich-text">{{ content.body_html|safe }}</div>
+  {% else %}
+  <div class="prose">{{ assignment.instructions }}</div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if attachments %}
+<section class="card">
+  <div class="section-head">
+    <h2>קבצים מצורפים <span class="count">{{ attachments|length }}</span></h2>
+  </div>
+  <ul class="import-attachments media-list">
+    {% for attachment in attachments %}
+    <li>
+      <a href="{{ base }}/assignments/{{ assignment.id }}/media/{{ attachment.id }}">
+        {{ attachment.title }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<div class="row-actions">
+  <a class="button button-secondary" href="{{ base }}/classes/{{ group.id }}">
+    חזרה לכיתה
+  </a>
+</div>
+{% endblock %}

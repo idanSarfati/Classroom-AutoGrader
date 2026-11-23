@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} · {{ app_name }}{% endblock %}
+
+{% block content %}
+{% set base = preview_base if preview else '/student' %}
+{% if preview %}{% include "_preview_banner.html" %}{% endif %}
+<nav class="breadcrumb" aria-label="מיקום">
+  {% if preview %}
+  <a href="/teacher/classes/{{ group.id }}">ניהול הכיתה</a>
+  <span aria-hidden="true">/</span>
+  <a href="{{ base }}/classes/{{ group.id }}">{{ group.name }}</a>
+  <span aria-hidden="true">/</span>
+  <span>תצוגת תלמיד</span>
+  {% else %}
+  <a href="/student">הלימודים שלי</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ group.name }}</span>
+  {% endif %}
+</nav>
+
+<section class="page-head">
+  <div>
+    <h1>{{ group.name }}</h1>
+    <p class="muted">שיעורים ומטלות מפורסמים בכיתה, מסודרים לפי נושאים — היחידה הגבוהה והפריט החדש למעלה.</p>
+  </div>
+</section>
+
+{% if topics %}
+  {% for topic in topics %}
+  <section class="card topic-card">
+    <div class="section-head">
+      <h2>{{ topic.label }}</h2>
+      <span class="count">{{ topic.items|length }}</span>
+    </div>
+    <ul class="lesson-list">
+      {% for item in topic.items %}
+      <li class="lesson-row feed-row">
+        <div class="lesson-main">
+          <div class="badge-row">
+            <span class="badge {{ item.kind_badge }}">{{ item.kind_label }}</span>
+            {% if item.status_label %}
+            <span class="badge {{ item.status_badge }}">{{ item.status_label }}</span>
+            {% endif %}
+          </div>
+          <a class="lesson-link" href="{{ item.href }}">{{ item.title }}</a>
+          <div class="meta muted">
+            {% if item.kind == 'lesson' %}
+            {{ item.slide_count }} שקופיות
+            {% elif item.due_at %}
+            יעד: {{ item.due_at|local_dt }}
+            {% else %}
+            ללא תאריך יעד
+            {% endif %}
+          </div>
+          {% if item.summary %}
+          <p class="clamp">{{ item.summary }}</p>
+          {% endif %}
+        </div>
+        <a class="button button-secondary" href="{{ item.href }}">{{ item.action_label }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+{% else %}
+<section class="card">
+  <p class="muted">אין תוכן מפורסם עדיין.</p>
+</section>
+{% endif %}
+{% endblock %}
