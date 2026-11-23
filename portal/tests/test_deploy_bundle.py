@@ -13,7 +13,7 @@ from portal.scripts import build_deploy_bundle as bundle
 @pytest.fixture
 def fake_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "project"
-    for name in ("portal", "src", "config", "configs", "assignments"):
+    for name in ("portal", "grading_engine", "configs", "assignments"):
         (root / name).mkdir(parents=True)
         (root / name / "module.py").write_text("x = 1\n", encoding="utf-8")
     (root / "portal" / "deploy").mkdir()
@@ -105,6 +105,6 @@ def test_code_only_bundle_never_ships_data(
     out = bundle.build(tmp_path / "update.tar.gz", code_only=True)
     names = _names(out)
     assert not any("/portal/data/" in name for name in names)
-    assert "clasroom-autograder/src/module.py" in names
+    assert "clasroom-autograder/grading_engine/module.py" in names
     assert "clasroom-autograder/portal/deploy/setup_server.sh" in names
     assert "clasroom-autograder/requirements.txt" in names

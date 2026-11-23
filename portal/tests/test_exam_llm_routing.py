@@ -16,7 +16,7 @@ import pytest
 
 from portal.exams import checker, feedback, llm_review
 from portal.worksheets.schema import Item, Part
-from src.llm_router import DailyQuotaExhausted
+from grading_engine.llm_router import DailyQuotaExhausted
 
 
 # --------------------------------------------------------------------- fakes
@@ -554,7 +554,7 @@ def test_a_non_quota_failure_is_failed_not_waiting(monkeypatch):
 # ------------------------------------------------- fallback-key counter shim
 def _strip_fallback_counters():
     """Return the engine class to its unpatched state (order-independent tests)."""
-    from src.llm_router import _FallbackKeyState
+    from grading_engine.llm_router import _FallbackKeyState
 
     for name in ("consecutive_429s", "served"):
         if hasattr(_FallbackKeyState, name):
@@ -568,7 +568,7 @@ def test_fallback_key_counters_survive_a_429_and_a_success():
     router does ``+= 1`` on them for pool keys. The portal shim adds the two
     counters; this drives the real router to prove the crash is gone.
     """
-    from src.llm_router import LLMRouter
+    from grading_engine.llm_router import LLMRouter
 
     _strip_fallback_counters()
     router = LLMRouter(

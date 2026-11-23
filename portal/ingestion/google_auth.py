@@ -44,7 +44,7 @@ class IngestionAuthError(RuntimeError):
 
 def _candidate_tokens() -> list[Path]:
     """Portal token first, then the existing application's token."""
-    from src.auth import TOKEN_FILE as src_token_file
+    from grading_engine.auth import TOKEN_FILE as src_token_file
 
     return [PORTAL_TOKEN_FILE, Path(src_token_file)]
 
@@ -90,7 +90,7 @@ def _save_portal_token(credentials: Credentials) -> None:
 
 
 def _required_scopes() -> tuple[str, ...]:
-    from src.auth import SCOPES
+    from grading_engine.auth import SCOPES
 
     # ``src/`` is read-only for this project, so the extra Materials scope is
     # added here instead of changing the grading engine's grant list.
@@ -168,7 +168,7 @@ def _run_consent(required: tuple[str, ...]) -> Credentials:
     """Interactive consent - only reachable from the CLI, never a request."""
     from google_auth_oauthlib.flow import InstalledAppFlow
 
-    from src.auth import CREDENTIALS_FILE
+    from grading_engine.auth import CREDENTIALS_FILE
 
     if not Path(CREDENTIALS_FILE).is_file():
         raise IngestionAuthError(

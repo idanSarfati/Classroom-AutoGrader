@@ -41,9 +41,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from config.settings import settings
-from src.late_policy import penalty_for
-from src.llm_evaluator import (
+from grading_engine.settings import settings
+from grading_engine.late_policy import penalty_for
+from grading_engine.llm_evaluator import (
     LLMAPIError,
     LLMEvaluationError,
     Rubric,
@@ -52,8 +52,8 @@ from src.llm_evaluator import (
     paced_pause,
     rubric_title,
 )
-from src.llm_router import DailyQuotaExhausted
-from src.models import CourseWork, GradingResult, StudentSubmission
+from grading_engine.llm_router import DailyQuotaExhausted
+from grading_engine.models import CourseWork, GradingResult, StudentSubmission
 
 from portal.paths import PROJECT_ROOT, RUBRIC_ROOTS
 
@@ -220,7 +220,7 @@ def load_rubric(
     # classroom workflow, which the portal does not need at web startup.
     # The function itself is the project's single schema-aware rubric loader,
     # so reusing it is the fidelity-preserving choice.
-    from src.main import load_rubric as _load_rubric
+    from grading_engine.main import load_rubric as _load_rubric
 
     try:
         rubric = _load_rubric(resolved)
@@ -319,8 +319,8 @@ def _park_spent_fallback_pool(exc: BaseException) -> bool:
     try:
         import time
 
-        from src import llm_evaluator
-        from src.llm_router import DAILY_QUOTA_COOLDOWN_SECONDS
+        from grading_engine import llm_evaluator
+        from grading_engine.llm_router import DAILY_QUOTA_COOLDOWN_SECONDS
 
         router = getattr(llm_evaluator, "_ROUTER", None)
         pool = getattr(router, "_fallback_keys", None)

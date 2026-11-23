@@ -257,7 +257,7 @@ def _exam_router_settings() -> Any:
     the whole app. Importing :mod:`config.settings` also loads ``.env``, which
     is where the keys live - the same place the grading engine reads them.
     """
-    from config.settings import settings as engine
+    from grading_engine.settings import settings as engine
 
     def pick(*names: str, fallback: str = "") -> str:
         for name in names:
@@ -310,7 +310,7 @@ def _patch_fallback_key_state() -> None:
     the Groq ``_KeyState``; the dataclass constructor and fields are unchanged.
     """
     try:
-        from src.llm_router import _FallbackKeyState
+        from grading_engine.llm_router import _FallbackKeyState
     except Exception:  # noqa: BLE001 - the shim must never block marking
         return
     for name in ("consecutive_429s", "served"):
@@ -326,7 +326,7 @@ def _router() -> Any:
             return _ROUTER
         _ROUTER_READY = True
         try:
-            from src.llm_router import build_router_from_settings
+            from grading_engine.llm_router import build_router_from_settings
 
             _patch_fallback_key_state()
             _ROUTER = build_router_from_settings(_exam_router_settings())
@@ -342,7 +342,7 @@ def _pacer() -> Any:
     """Shared adaptive pause between papers, stretched by observed 429s."""
     global _PACER
     if _PACER is None:
-        from src.llm_router import AdaptivePacer
+        from grading_engine.llm_router import AdaptivePacer
 
         try:
             base = float(_env("EXAM_LLM_PACE_SECONDS") or 1.0)
@@ -395,7 +395,7 @@ def _is_daily_quota_error(detail: str) -> bool:
     the day instead of cooling it for a minute that never refills.
     """
     try:
-        from src.llm_router import is_daily_quota_error
+        from grading_engine.llm_router import is_daily_quota_error
 
         if is_daily_quota_error(detail):
             return True
@@ -453,7 +453,7 @@ def _report_legacy_rate_limit(
     """
     global _LEGACY_STRIKES
     if daily:
-        from src.llm_router import DAILY_QUOTA_COOLDOWN_SECONDS
+        from grading_engine.llm_router import DAILY_QUOTA_COOLDOWN_SECONDS
 
         wait = DAILY_QUOTA_COOLDOWN_SECONDS
         _park_legacy(wait)
@@ -607,7 +607,7 @@ def _send_routed(
     The injected-client path (:func:`_send`) is kept for tests and for a
     single-key install with no pool at all.
     """
-    from src.llm_router import (
+    from grading_engine.llm_router import (
         DAILY_QUOTA_COOLDOWN_SECONDS,
         DailyQuotaExhausted,
         is_unknown_model_error,

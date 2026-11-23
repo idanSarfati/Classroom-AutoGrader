@@ -12,9 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 
-import src.llm_evaluator as evaluator
-from config.settings import settings as engine_settings
-from src.models import AssignmentConfig, AssignmentSpec, TaskDefinition
+import grading_engine.llm_evaluator as evaluator
+from grading_engine.settings import settings as engine_settings
+from grading_engine.models import AssignmentConfig, AssignmentSpec, TaskDefinition
 from portal.grading import adapter
 
 PAYLOAD = {

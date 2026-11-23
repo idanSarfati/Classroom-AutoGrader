@@ -43,10 +43,11 @@ from portal.scripts.normalize_rubric_paths import (
 
 ARCHIVE_ROOT = "clasroom-autograder"
 
-# Project directories that make up the runnable application. ``src/`` and
-# ``config/`` are the grading engine the portal imports read-only; the rubric
-# files are resolved from ``assignments/`` and ``configs/``.
-TREE_DIRS = ("portal", "src", "config", "configs", "assignments")
+# Project directories that make up the runnable standalone application.
+# ``grading_engine/`` is the extracted grading engine the portal imports
+# read-only; the rubric files are resolved from ``assignments/`` and
+# ``configs/``. The Streamlit ``src/``/``config/`` are not shipped.
+TREE_DIRS = ("portal", "grading_engine", "configs", "assignments")
 TREE_FILES = ("requirements.txt", ".env")
 
 # Portal data that must travel: the snapshot and the two credentials the

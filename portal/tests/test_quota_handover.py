@@ -18,9 +18,9 @@ from types import SimpleNamespace
 import pytest
 
 from portal.grading import adapter
-from src import llm_evaluator
-from src.llm_router import DAILY_QUOTA_COOLDOWN_SECONDS, DailyQuotaExhausted
-from src.models import GradingResult
+from grading_engine import llm_evaluator
+from grading_engine.llm_router import DAILY_QUOTA_COOLDOWN_SECONDS, DailyQuotaExhausted
+from grading_engine.models import GradingResult
 
 # The exact shape of the message the engine's transport raises when a
 # fallback-pool key reports its daily cap (see src/evaluator/transport.py).

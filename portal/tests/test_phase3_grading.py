@@ -27,8 +27,8 @@ from portal.models import (
     User,
 )
 from portal.tests.helpers import create_user, csrf, login
-from src.grade_audit import AuditFinding, AuditVerdict
-from src.models import (
+from grading_engine.grade_audit import AuditFinding, AuditVerdict
+from grading_engine.models import (
     DeductionItem,
     GradingResult,
     TaskEvaluation,

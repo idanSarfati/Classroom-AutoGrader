@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from config.settings import DEFAULT_LATE_PENALTY_POINTS, settings
+from grading_engine.settings import DEFAULT_LATE_PENALTY_POINTS, settings
 from portal.paths import PORTAL_ROOT, PROJECT_ROOT
 from portal.grading.adapter import hash_file
 
@@ -37,14 +37,14 @@ BASELINE_PATH = PORTAL_ROOT / "grading" / "baseline.json"
 CRITICAL_FILES: tuple[str, ...] = (
     "app.py",
     "config/settings.py",
-    "src/code_checks.py",
-    "src/grade_audit.py",
-    "src/late_policy.py",
-    "src/llm_evaluator.py",
-    "src/llm_router.py",
-    "src/main.py",
-    "src/models.py",
-    "src/seams.py",
+    "grading_engine/code_checks.py",
+    "grading_engine/grade_audit.py",
+    "grading_engine/late_policy.py",
+    "grading_engine/llm_evaluator.py",
+    "grading_engine/llm_router.py",
+    "grading_engine/main.py",
+    "grading_engine/models.py",
+    "grading_engine/seams.py",
 )
 
 
@@ -61,39 +61,59 @@ def _git(*args: str) -> str | None:
 
 
 def _existing_system_dirty() -> bool:
-    """Whether tracked files outside ``portal/`` have uncommitted changes."""
+    """Whether tracked files have uncommitted changes."""
     output = _git(
         "status",
         "--porcelain",
         "--",
-        "app.py",
-        "src",
-        "config",
+        "grading_engine",
+        "portal",
         "tests",
+        "assignments",
+        "configs",
     )
     return bool(output)
 
 
 def _critical_file_hashes() -> dict[str, str]:
-    files = {path: hash_file(PROJECT_ROOT / path) for path in CRITICAL_FILES}
-    for path in sorted((PROJECT_ROOT / "src" / "evaluator").glob("*.py")):
+    # Baseline keys keep the ORIGINAL ``src/...`` / ``config/settings.py``
+    # names so the drift-check mapping (check_baseline_drift.py) stays stable,
+    # but the bytes hashed are the standalone ``grading_engine/`` copies.
+    files: dict[str, str] = {
+        "config/settings.py": hash_file(
+            PROJECT_ROOT / "grading_engine" / "settings.py"
+        )
+    }
+    _src_keys = {
+        "code_checks.py": "src/code_checks.py",
+        "grade_audit.py": "src/grade_audit.py",
+        "late_policy.py": "src/late_policy.py",
+        "llm_evaluator.py": "src/llm_evaluator.py",
+        "llm_router.py": "src/llm_router.py",
+        "main.py": "src/main.py",
+        "models.py": "src/models.py",
+        "seams.py": "src/seams.py",
+    }
+    for name, key in _src_keys.items():
+        files[key] = hash_file(PROJECT_ROOT / "grading_engine" / name)
+    for path in sorted((PROJECT_ROOT / "grading_engine" / "evaluator").glob("*.py")):
         files[f"src/evaluator/{path.name}"] = hash_file(path)
     return dict(sorted(files.items()))
 
 
 def _constants() -> dict[str, Any]:
-    from src.evaluator.config import (  # noqa: PLC0415 - intentional probe
+    from grading_engine.evaluator.config import (  # noqa: PLC0415 - intentional probe
         EVAL_PAUSE_SECONDS,
         MAX_DOC_CHARS,
         MAX_TOKENS,
         REASONING_EFFORT,
         TEMPERATURE,
     )
-    from src.evaluator.schema import _STAGES  # noqa: PLC0415
+    from grading_engine.evaluator.schema import _STAGES  # noqa: PLC0415
 
-    prompt_source = (PROJECT_ROOT / "src" / "evaluator" / "prompts.py").read_text(
-        encoding="utf-8"
-    )
+    prompt_source = (
+        PROJECT_ROOT / "grading_engine" / "evaluator" / "prompts.py"
+    ).read_text(encoding="utf-8")
     return {
         "temperature": TEMPERATURE,
         "max_tokens": MAX_TOKENS,

@@ -32,7 +32,7 @@ from portal.tests.test_exam_llm_routing import (
     _rate_limited,
     _wire,
 )
-from src.llm_router import LLMRouter, ProviderEndpoint
+from grading_engine.llm_router import LLMRouter, ProviderEndpoint
 
 # The real shape of Gemini's free-tier daily 429: a JSON array whose verbose
 # message carries the daily description ("requests per day ... Free Tier")

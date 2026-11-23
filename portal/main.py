@@ -47,7 +47,7 @@ from portal.web import (
 )
 from portal.web.deps import get_db, get_optional_user, render, role_home
 from portal.models import User
-from config.settings import settings as engine_settings
+from grading_engine.settings import settings as engine_settings
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 
-from src.classroom_service import (
+from grading_engine.classroom_service import (
     ClassroomService,
     ClassroomServiceError,
     _classroom_due_instant,
@@ -604,7 +604,7 @@ class ClassroomSource:
             result = (preferred, 1.0, "lesson number match")
             self._rubric_cache[title] = result
             return result
-        from src.config_match import list_config_files, suggest_config_for_assignment
+        from grading_engine.config_match import list_config_files, suggest_config_for_assignment
 
         roots = [root.resolve() for root in RUBRIC_ROOTS]
         candidates = []

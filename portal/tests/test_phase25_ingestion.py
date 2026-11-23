@@ -1661,7 +1661,7 @@ def test_load_course_merges_the_materials_tab():
 
 def test_materials_scope_error_tells_the_teacher_to_reauthorize():
     from portal.ingestion.classroom_source import ClassroomSource, SourceError
-    from src.classroom_service import ClassroomServiceError
+    from grading_engine.classroom_service import ClassroomServiceError
 
     class _DeniedService(_MaterialsService):
         def __init__(self):

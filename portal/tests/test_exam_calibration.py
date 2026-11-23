@@ -58,7 +58,7 @@ from portal.tests.test_exam_llm_routing import (
     FakeResponse,
     FakeRouter,
 )
-from src.llm_router import DailyQuotaExhausted
+from grading_engine.llm_router import DailyQuotaExhausted
 
 
 # --------------------------------------------------------------------- helpers
