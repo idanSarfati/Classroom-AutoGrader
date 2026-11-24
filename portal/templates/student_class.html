@@ -27,11 +27,13 @@
 
 {% if topics %}
   {% for topic in topics %}
-  <section class="card topic-card">
-    <div class="section-head">
+  {# Units start collapsed: the header is the toggle and each unit opens on
+     demand, so a long syllabus stays scannable. #}
+  <details class="card topic-card">
+    <summary class="section-head">
       <h2>{{ topic.label }}</h2>
       <span class="count">{{ topic.items|length }}</span>
-    </div>
+    </summary>
     <ul class="lesson-list">
       {% for item in topic.items %}
       <li class="lesson-row feed-row">
@@ -60,7 +62,7 @@
       </li>
       {% endfor %}
     </ul>
-  </section>
+  </details>
   {% endfor %}
 {% else %}
 <section class="card">

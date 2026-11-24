@@ -176,6 +176,9 @@ def test_class_preview_shows_topics_and_badges(app, client) -> None:
     assert "לא הוגש" in html
     assert f"/teacher/preview/lessons/" in html
     assert f"/teacher/preview/assignments/" in html
+    # Units start collapsed; the header itself is the expand toggle.
+    assert '<details class="card topic-card">' in html
+    assert '<details class="card topic-card" open' not in html
 
 
 def test_teacher_class_page_merges_lessons_and_assignments(app, client) -> None:
@@ -240,3 +243,6 @@ def test_teacher_class_page_merges_lessons_and_assignments(app, client) -> None:
     assert "1.2 | הגשת משימות" in html
     # Newer item sits above the earlier lesson inside the same unit.
     assert html.index("1.2 | הגשת משימות") < html.index("1.1 | מבוא לאלגוריתמיקה")
+    # Each unit is a collapsed disclosure the teacher opens on demand.
+    assert html.count('<details class="card topic-card">') == 2
+    assert '<details class="card topic-card" open' not in html

@@ -3385,6 +3385,29 @@ details[open] > summary {
   font-size: 1.12rem;
 }
 
+/* Every unit is collapsed on entry so a long syllabus stays scannable: the
+   card header is the toggle and a chevron marks it as expandable. */
+details.topic-card > summary.section-head {
+  margin-block-end: 0;
+}
+
+details.topic-card[open] > summary.section-head {
+  margin-block-end: 10px;
+}
+
+details.topic-card > summary.section-head > h2::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  margin-inline-end: 2px;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+details.topic-card[open] > summary.section-head > h2::before {
+  content: "▾";
+}
+
 .feed-row {
   align-items: flex-start;
 }
