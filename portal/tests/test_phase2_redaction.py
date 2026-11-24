@@ -347,6 +347,10 @@ def test_assignment_page_redacts_every_rubric_file(app, client, new_client) -> N
         # Strip it so the leak scan only judges real page content.
         for token in set(re.findall(r'name="csrf_token" value="([^"]+)"', page)):
             page = page.replace(token, "")
+        # The asset cache-busting query (?v=<mtime>) is a nonce too: a short
+        # numeric answer can land inside its digits by chance, exactly like the
+        # CSRF token above, and it is not page content.
+        page = re.sub(r"\?v=\d+", "", page)
         for key in redaction.SENSITIVE_KEYS:
             if key == "answer":
                 # The generic word also appears in a CSS class name; only a
